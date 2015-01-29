@@ -233,7 +233,7 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 	
 	protected DummyAuditService dummyAuditService;
 	
-	protected boolean verbose = false; 
+	protected boolean verbose = false;
 	
 	private static final Trace LOGGER = TraceManager.getTrace(AbstractModelIntegrationTest.class);
 			
@@ -278,14 +278,18 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 		subResult.addParam("filename", file);
 		LOGGER.trace("importObjectFromFile: {}", file);
 		Task task = taskManager.createTaskInstance();
-		FileInputStream stream = new FileInputStream(file);
-		modelService.importObjectsFromStream(stream, MiscSchemaUtil.getDefaultImportOptions(), task, subResult);
+		importObjectFromFile(file, task, result);
 		subResult.computeStatus();
 		if (subResult.isError()) {
 			LOGGER.error("Import of file "+file+" failed:\n{}", subResult.debugDump());
 			Throwable cause = findCause(subResult);
 			throw new SystemException("Import of file "+file+" failed: "+subResult.getMessage(), cause);
 		}
+	}
+	
+	protected void importObjectFromFile(File file, Task task, OperationResult result) throws FileNotFoundException {
+		FileInputStream stream = new FileInputStream(file);
+		modelService.importObjectsFromStream(stream, MiscSchemaUtil.getDefaultImportOptions(), task, result);
 	}
 	
 	protected Throwable findCause(OperationResult result) {
@@ -847,6 +851,10 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 	protected ContainerDelta<AssignmentType> createAccountAssignmentModification(String resourceOid, String intent, boolean add) throws SchemaException {
 		return createAssignmentModification(resourceOid, ShadowKindType.ACCOUNT, intent, add);
 	}
+
+	protected <V> PropertyDelta<V> createUserPropertyReplaceModification(QName propertyName, V... values) {
+		return PropertyDelta.createReplaceDelta(getUserDefinition(), propertyName, values);
+	}
 	
 	protected ContainerDelta<AssignmentType> createAssignmentModification(String resourceOid, ShadowKindType kind, 
 			String intent, boolean add) throws SchemaException {
@@ -1167,6 +1175,32 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
         } catch (ObjectNotFoundException e) {
         	// This is OK
         }
+	}
+	
+	protected AssignmentType getUserAssignment(String userOid, String roleOid) throws ObjectNotFoundException, SchemaException, SecurityViolationException, CommunicationException, ConfigurationException {
+		PrismObject<UserType> user = getUser(userOid);
+		List<AssignmentType> assignments = user.asObjectable().getAssignment();
+		for (AssignmentType assignment: assignments) {
+			ObjectReferenceType targetRef = assignment.getTargetRef();
+			if (targetRef != null && roleOid.equals(targetRef.getOid())) {
+				return assignment;
+			}
+		}
+		return null;
+	}
+	
+	protected <F extends FocusType> void assertNoAssignments(PrismObject<F> user) {
+		MidPointAsserts.assertNoAssignments(user);
+	}
+	
+	protected void assertNoAssignments(String userOid, OperationResult result) throws ObjectNotFoundException, SchemaException {
+		PrismObject<UserType> user = repositoryService.getObject(UserType.class, userOid, null, result);
+		assertNoAssignments(user);
+	}
+	
+	protected void assertNoAssignments(String userOid) throws ObjectNotFoundException, SchemaException {
+		OperationResult result = new OperationResult(AbstractModelIntegrationTest.class.getName() + ".assertNoShadow");
+		assertNoAssignments(userOid, result);
 	}
 	
 	protected void assertAssignedRole(String userOid, String roleOid, Task task, OperationResult result) throws ObjectNotFoundException, SchemaException {
@@ -1673,8 +1707,12 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 	protected void waitForTaskFinish(Task task, boolean checkSubresult) throws Exception {
 		waitForTaskFinish(task, checkSubresult, DEFAULT_TASK_WAIT_TIMEOUT);
 	}
+
+	protected void waitForTaskFinish(Task task, boolean checkSubresult, final int timeout) throws Exception {
+		waitForTaskFinish(task, checkSubresult, timeout, DEFAULT_TASK_SLEEP_TIME);
+	}
 	
-	protected void waitForTaskFinish(final Task task, final boolean checkSubresult,final int timeout) throws Exception {
+	protected void waitForTaskFinish(final Task task, final boolean checkSubresult, final int timeout, long sleepTime) throws Exception {
 		final OperationResult waitResult = new OperationResult(AbstractIntegrationTest.class+".waitForTaskFinish");
 		Checker checker = new Checker() {
 			@Override
@@ -1702,7 +1740,7 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 				assert false : "Timeout ("+timeout+") while waiting for "+task+" to finish. Last result "+result;
 			}
 		};
-		IntegrationTestTools.waitFor("Waiting for "+task+" finish", checker , timeout, DEFAULT_TASK_SLEEP_TIME);
+		IntegrationTestTools.waitFor("Waiting for "+task+" finish", checker , timeout, sleepTime);
 	}
 	
 	protected void waitForTaskFinish(String taskOid, boolean checkSubresult) throws Exception {
@@ -1845,17 +1883,17 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 	
 	private boolean isError(OperationResult result, boolean checkSubresult) {
 		OperationResult subresult = getSubresult(result, checkSubresult);
-		return subresult.isError();
+		return subresult != null ? subresult.isError() : false;
 	}
 	
 	private boolean isUknown(OperationResult result, boolean checkSubresult) {
 		OperationResult subresult = getSubresult(result, checkSubresult);
-		return subresult.isUnknown();
+		return subresult != null ? subresult.isUnknown() : false;			// TODO or return true?
 	}
 
 	private boolean isInProgress(OperationResult result, boolean checkSubresult) {
 		OperationResult subresult = getSubresult(result, checkSubresult);
-		return subresult.isInProgress();
+		return subresult != null ? subresult.isInProgress() : true;		// "true" if there are no subresults
 	}
 
 	private OperationResult getSubresult(OperationResult result, boolean checkSubresult) {
@@ -2129,15 +2167,16 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 		}
 	}
 	
-	protected void assertDummyAccount(String username, String fullname, boolean active) {
+	protected void assertDefaultDummyAccount(String username, String fullname, boolean active) {
 		assertDummyAccount(null, username, fullname, active);
 	}
 	
-	protected void assertDummyAccount(String dummyInstanceName, String username, String fullname, boolean active) {
+	protected DummyAccount assertDummyAccount(String dummyInstanceName, String username, String fullname, boolean active) {
 		DummyAccount account = getDummyAccount(dummyInstanceName, username);
 		assertNotNull("No dummy("+dummyInstanceName+") account for username "+username, account);
 		assertEquals("Wrong fullname for dummy("+dummyInstanceName+") account "+username, fullname, account.getAttributeValue("fullname"));
 		assertEquals("Wrong activation for dummy("+dummyInstanceName+") account "+username, active, account.isEnabled());
+		return account;
 	}
 	
 	protected void assertDummyAccount(String dummyInstanceName, String username) {
@@ -2190,7 +2229,18 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
 			}
 		}
 	}
-	
+
+	protected void assertNoDummyAccountAttribute(String dummyInstanceName, String username, String attributeName) {
+		DummyAccount account = getDummyAccount(dummyInstanceName, username);
+		assertNotNull("No dummy account for username "+username, account);
+		Set<Object> values = account.getAttributeValues(attributeName, Object.class);
+		if (values == null || values.isEmpty()) {
+			return;
+		}
+		AssertJUnit.fail("Expected no value in attribute "+attributeName+" of dummy account "+username+
+						". Values found: "+values);
+	}
+
 	protected void assertDummyAccountAttributeGenerated(String dummyInstanceName, String username) {
 		DummyAccount account = getDummyAccount(dummyInstanceName, username);
 		assertNotNull("No dummy account for username "+username, account);
@@ -2255,6 +2305,26 @@ public abstract class AbstractModelIntegrationTest extends AbstractIntegrationTe
         }
     }
 
+    protected void assertDummyGroupMember(String dummyInstanceName, String dummyGroupName, String accountId) throws ConnectException, FileNotFoundException {
+    	DummyResource dummyResource = DummyResource.getInstance(dummyInstanceName);
+		DummyGroup group = dummyResource.getGroupByName(dummyGroupName);
+		IntegrationTestTools.assertGroupMember(group, accountId);
+	}
+	
+	protected void assertDefaultDummyGroupMember(String dummyGroupName, String accountId) throws ConnectException, FileNotFoundException {
+		assertDummyGroupMember(null, dummyGroupName, accountId);
+	}
+
+	protected void assertNoDummyGroupMember(String dummyInstanceName, String dummyGroupName, String accountId) throws ConnectException, FileNotFoundException {
+		DummyResource dummyResource = DummyResource.getInstance(dummyInstanceName);
+		DummyGroup group = dummyResource.getGroupByName(dummyGroupName);
+		IntegrationTestTools.assertNoGroupMember(group, accountId);
+	}
+	
+	protected void assertNoDefaultDummyGroupMember(String dummyGroupName, String accountId) throws ConnectException, FileNotFoundException {
+		assertNoDummyGroupMember(null, dummyGroupName, accountId);
+	}
+    
 	protected void assertDummyAccountNoAttribute(String dummyInstanceName, String username, String attributeName) {
 		DummyAccount account = getDummyAccount(dummyInstanceName, username);
 		assertNotNull("No dummy account for username "+username, account);

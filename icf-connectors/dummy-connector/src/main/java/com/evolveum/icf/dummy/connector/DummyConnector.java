@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2014 Evolveum
+ * Copyright (c) 2010-2015 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package com.evolveum.icf.dummy.connector;
 
+import org.apache.commons.lang.StringUtils;
 import org.identityconnectors.framework.spi.operations.*;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
@@ -27,11 +28,13 @@ import static com.evolveum.icf.dummy.connector.Utils.*;
 
 import java.io.FileNotFoundException;
 import java.net.ConnectException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.common.security.GuardedString.Accessor;
@@ -274,8 +277,10 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 							throw new org.identityconnectors.framework.common.exceptions.UnknownUidException(e.getMessage(), e);
 						} catch (ObjectAlreadyExistsException e) {
 							throw new org.identityconnectors.framework.common.exceptions.AlreadyExistsException(e.getMessage(), e);
+						} catch (SchemaViolationException e) {
+							throw new org.identityconnectors.framework.common.exceptions.ConnectorException("Schema exception: " + e.getMessage(), e);
 						}
-		        		// We need to change the returned uid here (only if the mode is not set to UUID)
+						// We need to change the returned uid here (only if the mode is not set to UUID)
 						if (!(configuration.getUidMode().equals(DummyConfiguration.UID_MODE_UUID))){
 							uid = new Uid(newName);
 						}
@@ -341,8 +346,16 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 		        		
 		        	} else {
 			        	String name = attr.getName();
+			        	List<Object> values = attr.getValue();
+			        	if (attr.is(DummyGroup.ATTR_MEMBERS_NAME) && values != null && configuration.getUpCaseName()) {
+			        		List<Object> newValues = new ArrayList<Object>(values.size());
+			        		for (Object val: values) {
+			        			newValues.add(StringUtils.upperCase((String)val));
+			        		}
+			        		values = newValues;
+			        	}
 			        	try {
-							group.replaceAttributeValues(name, attr.getValue());
+							group.replaceAttributeValues(name, values);
 						} catch (SchemaViolationException e) {
 							throw new IllegalArgumentException(e.getMessage(),e);
 						}
@@ -478,8 +491,16 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 		        		
 		        	} else {
 			        	String name = attr.getName();
+			        	List<Object> values = attr.getValue();
+			        	if (attr.is(DummyGroup.ATTR_MEMBERS_NAME) && values != null && configuration.getUpCaseName()) {
+			        		List<Object> newValues = new ArrayList<Object>(values.size());
+			        		for (Object val: values) {
+			        			newValues.add(StringUtils.upperCase((String)val));
+			        		}
+			        		values = newValues;
+			        	}
 			        	try {
-							group.addAttributeValues(name, attr.getValue());
+							group.addAttributeValues(name, values);
 						} catch (SchemaViolationException e) {
 							// we cannot throw checked exceptions. But this one looks suitable.
 							// Note: let's do the bad thing and add exception loaded by this classloader as inner exception here
@@ -602,8 +623,16 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 		        		throw new IllegalArgumentException("Attempt to remove value from enable attribute");
 		        	} else {
 			        	String name = attr.getName();
+			        	List<Object> values = attr.getValue();
+			        	if (attr.is(DummyGroup.ATTR_MEMBERS_NAME) && values != null && configuration.getUpCaseName()) {
+			        		List<Object> newValues = new ArrayList<Object>(values.size());
+			        		for (Object val: values) {
+			        			newValues.add(StringUtils.upperCase((String)val));
+			        		}
+			        		values = newValues;
+			        	}
 			        	try {
-							group.removeAttributeValues(name, attr.getValue());
+							group.removeAttributeValues(name, values);
 						} catch (SchemaViolationException e) {
 							// we cannot throw checked exceptions. But this one looks suitable.
 							// Note: let's do the bad thing and add exception loaded by this classloader as inner exception here
@@ -1138,6 +1167,9 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 	private DummyAccount convertToAccount(Set<Attribute> createAttributes) throws ConnectException, FileNotFoundException {
 		log.ok("Create attributes: {0}", createAttributes);
 		String userName = Utils.getMandatoryStringAttribute(createAttributes, Name.NAME);
+		if (configuration.getUpCaseName()) {
+			userName = StringUtils.upperCase(userName);
+		}
 		log.ok("Username {0}", userName);
 		final DummyAccount newAccount = new DummyAccount(userName);
 		
@@ -1196,6 +1228,9 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 	
 	private DummyGroup convertToGroup(Set<Attribute> createAttributes) throws ConnectException, FileNotFoundException {
 		String icfName = Utils.getMandatoryStringAttribute(createAttributes,Name.NAME);
+		if (configuration.getUpCaseName()) {
+			icfName = StringUtils.upperCase(icfName);
+		}
 		final DummyGroup newGroup = new DummyGroup(icfName);
 
 		Boolean enabled = null;
@@ -1242,6 +1277,9 @@ public class DummyConnector implements Connector, AuthenticateOp, ResolveUsernam
 	
 	private DummyPrivilege convertToPriv(Set<Attribute> createAttributes) throws ConnectException, FileNotFoundException {
 		String icfName = Utils.getMandatoryStringAttribute(createAttributes,Name.NAME);
+		if (configuration.getUpCaseName()) {
+			icfName = StringUtils.upperCase(icfName);
+		}
 		final DummyPrivilege newPriv = new DummyPrivilege(icfName);
 
 		Boolean enabled = null;

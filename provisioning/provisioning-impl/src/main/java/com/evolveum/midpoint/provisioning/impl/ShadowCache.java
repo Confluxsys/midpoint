@@ -277,8 +277,9 @@ public abstract class ShadowCache {
 			resourceShadow = resouceObjectConverter.getResourceObject(connector, resource, identifiers, objectClassDefinition, parentResult);
 			resourceTypeManager.modifyResourceAvailabilityStatus(resource.asPrismObject(), AvailabilityStatusType.UP, parentResult);
 			
+			
 			//try to apply changes to the account only if the resource if UP
-			if (repositoryShadow.asObjectable().getObjectChange() != null && repositoryShadow.asObjectable().getFailedOperationType() != null
+			if (isCompensate(rootOptions) && repositoryShadow.asObjectable().getObjectChange() != null && repositoryShadow.asObjectable().getFailedOperationType() != null
 					&& resource.getOperationalState() != null
 					&& resource.getOperationalState().getLastAvailabilityStatus() == AvailabilityStatusType.UP) {
 				throw new GenericConnectorException(
@@ -306,8 +307,8 @@ public abstract class ShadowCache {
 			
 		} catch (Exception ex) {
 			try {
-				boolean compensate = GetOperationOptions.isDoNotDiscovery(rootOptions)? false : true;
-				resourceShadow = handleError(ex, repositoryShadow, FailedOperation.GET, resource, null, compensate,
+				
+				resourceShadow = handleError(ex, repositoryShadow, FailedOperation.GET, resource, null, isCompensate(rootOptions),
 						task, parentResult);
 				
 				return resourceShadow;
@@ -320,6 +321,10 @@ public abstract class ShadowCache {
 		}
 		
 		
+	}
+	
+	private boolean isCompensate(GetOperationOptions rootOptions){
+		return GetOperationOptions.isDoNotDiscovery(rootOptions)? false : true;
 	}
 
 	public abstract String afterAddOnResource(PrismObject<ShadowType> shadow, ResourceType resource, 
@@ -882,7 +887,7 @@ public abstract class ShadowCache {
     }
 
     private SearchResultMetadata searchObjectsIterativeRepository(
-			RefinedObjectClassDefinition objectClassDef,
+			final RefinedObjectClassDefinition objectClassDef,
 			final ResourceType resourceType, ObjectQuery query,
 			Collection<SelectorOptions<GetOperationOptions>> options,
 			final ShadowHandler<ShadowType> shadowHandler, OperationResult parentResult) throws SchemaException {
@@ -893,6 +898,7 @@ public abstract class ShadowCache {
 					OperationResult parentResult) {
 				try {
 					applyAttributesDefinition(object, resourceType);
+					resouceObjectConverter.setProtectedFlag(resourceType, objectClassDef, object);		// fixing MID-1640; hoping that the protected object filter uses only identifiers (that are stored in repo)
 					boolean cont = shadowHandler.handle(object.asObjectable());
 					parentResult.recordSuccess();
 					return cont;
@@ -919,14 +925,17 @@ public abstract class ShadowCache {
 				parentResult);
 
 		if (repoShadow == null) {
-			LOGGER.trace(
-					"Shadow object (in repo) corresponding to the resource object (on the resource) was not found. The repo shadow will be created. The resource object:\n{}",
-					SchemaDebugUtil.prettyPrint(resourceShadow));
+			if (LOGGER.isTraceEnabled()) {
+				LOGGER.trace(
+						"Shadow object (in repo) corresponding to the resource object (on the resource) was not found. The repo shadow will be created. The resource object:\n{}",
+						SchemaDebugUtil.prettyPrint(resourceShadow));
+			}
 
 			repoShadow = createShadowInRepository(connector, resourceShadow, objectClassDef, resourceType, parentResult);
 		} else {
-			LOGGER.trace("Found shadow object in the repository {}",
-					SchemaDebugUtil.prettyPrint(repoShadow));
+			if (LOGGER.isTraceEnabled()) {
+				LOGGER.trace("Found shadow object in the repository {}", SchemaDebugUtil.prettyPrint(repoShadow));
+			}
 		}
 		
 		return repoShadow;
@@ -954,6 +963,7 @@ public abstract class ShadowCache {
 
 			repoShadow = shadowManager.createRepositoryShadow(
 					resourceShadow, resourceType, objectClassDef);
+			ConstraintsChecker.onShadowAddOperation(repoShadow.asObjectable());
 			String oid = repositoryService.addObject(repoShadow, null,
 					parentResult);
 			repoShadow.setOid(oid);
@@ -1158,9 +1168,9 @@ public abstract class ShadowCache {
 		Collection<? extends ItemDelta> shadowModification = createShadowResultModification(change, notifyChangeResult);
 		String oid = getOidFromChange(change);
 		// maybe better error handling is needed
-		try{
-		repositoryService.modifyObject(ShadowType.class, oid,
-				shadowModification, parentResult);
+		try {
+			ConstraintsChecker.onShadowModifyOperation(shadowModification);
+			repositoryService.modifyObject(ShadowType.class, oid, shadowModification, parentResult);
 		} catch (SchemaException ex){
 			parentResult.recordPartialError("Couldn't modify object: schema violation: " + ex.getMessage(), ex);
 //			throw ex;
@@ -1267,8 +1277,11 @@ public abstract class ShadowCache {
 
 			// FIXME: hack. the object delta must have oid specified.
 			if (change.getObjectDelta() != null && change.getObjectDelta().getOid() == null) {
-				ObjectDelta<ShadowType> objDelta = new ObjectDelta<ShadowType>(ShadowType.class, ChangeType.DELETE, prismContext);
-				change.setObjectDelta(objDelta);
+//				if (LOGGER.isTraceEnabled()) {
+//					LOGGER.trace("No OID present, assuming delta of type DELETE; change = {}\nobjectDelta: {}", change, change.getObjectDelta().debugDump());
+//				}
+//				ObjectDelta<ShadowType> objDelta = new ObjectDelta<ShadowType>(ShadowType.class, ChangeType.DELETE, prismContext);
+//				change.setObjectDelta(objDelta);
 				change.getObjectDelta().setOid(oldShadow.getOid());
 			}
 		} else {
@@ -1321,6 +1334,7 @@ public abstract class ShadowCache {
 			}
 		}
 		if (!renameDeltas.isEmpty()){
+			ConstraintsChecker.onShadowModifyOperation(renameDeltas);
 			repositoryService.modifyObject(ShadowType.class, oldShadowType.getOid(), renameDeltas, parentResult);
 			oldShadowType.setName(new PolyStringType(currentShadowName));
 		}
@@ -1381,14 +1395,21 @@ public abstract class ShadowCache {
 			applyAttributesDefinition(delta.getObjectToAdd(), resource);
 		} else if (delta.isModify()) {
 			ItemPath attributesPath = new ItemPath(ShadowType.F_ATTRIBUTES);
-			for(ItemDelta<?> modification: delta.getModifications()) {
-				if (modification.getDefinition() == null && attributesPath.equivalent(modification.getParentPath())) {
-					QName attributeName = modification.getElementName();
+			for(ItemDelta<?> itemDelta: delta.getModifications()) {
+				ItemDefinition itemDef = itemDelta.getDefinition();
+				if ((itemDef == null || !(itemDef instanceof ResourceAttributeDefinition)) && attributesPath.equivalent(itemDelta.getParentPath())) {
+					QName attributeName = itemDelta.getElementName();
 					ResourceAttributeDefinition attributeDefinition = objectClassDefinition.findAttributeDefinition(attributeName);
 					if (attributeDefinition == null) {
 						throw new SchemaException("No definition for attribute "+attributeName+" in object delta "+delta);
 					}
-					modification.applyDefinition(attributeDefinition);
+					if (itemDef != null) {
+						// We are going to rewrite the definition anyway. Let's just do some basic checks first
+						if (!QNameUtil.match(itemDef.getTypeName(),attributeDefinition.getTypeName())) {
+							throw new SchemaException("The value of type "+itemDef.getTypeName()+" cannot be applied to attribute "+attributeName+" which is of type "+attributeDefinition.getTypeName());
+						}
+					}
+					itemDelta.applyDefinition(attributeDefinition);
 				}
 			}
 		}

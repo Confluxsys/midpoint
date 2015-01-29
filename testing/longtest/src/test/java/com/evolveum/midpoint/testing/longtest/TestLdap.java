@@ -21,20 +21,17 @@ import static org.testng.AssertJUnit.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.xml.namespace.QName;
 
-import com.evolveum.midpoint.common.LoggingConfigurationManager;
-import com.evolveum.midpoint.common.ProfilingConfigurationManager;
-import com.evolveum.midpoint.model.impl.importer.ImportAccountsFromResourceTaskHandler;
 import com.evolveum.midpoint.model.impl.sync.ReconciliationTaskHandler;
-import com.evolveum.midpoint.schema.constants.SchemaConstants;
+import com.evolveum.midpoint.util.aspect.ProfilingDataManager;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.mutable.MutableInt;
-import org.opends.server.core.DirectoryServer;
 import org.opends.server.types.Entry;
 import org.opends.server.types.LDIFImportConfig;
-import org.opends.server.types.SearchResultEntry;
 import org.opends.server.util.LDIFException;
 import org.opends.server.util.LDIFReader;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -126,6 +123,10 @@ public class TestLdap extends AbstractModelIntegrationTest {
 
     @AfterClass
     public static void stopResources() throws Exception {
+        //end profiling
+        ProfilingDataManager.getInstance().printMapAfterTest();
+        ProfilingDataManager.getInstance().stopProfilingAfterTest();
+
         openDJController.stop();
     }
 
@@ -148,7 +149,7 @@ public class TestLdap extends AbstractModelIntegrationTest {
 //                ProfilingConfigurationManager.checkSystemProfilingConfiguration(config),
 //                config.asObjectable().getVersion(), initResult);
 
-		// administrator
+        // administrator
 		PrismObject<UserType> userAdministrator = repoAddObjectFromFile(USER_ADMINISTRATOR_FILE, UserType.class, initResult);
 		repoAddObjectFromFile(ROLE_SUPERUSER_FILE, RoleType.class, initResult);
 		login(userAdministrator);
@@ -166,7 +167,18 @@ public class TestLdap extends AbstractModelIntegrationTest {
 		openDJController.setResource(resourceOpenDj);
 		
 		assumeAssignmentPolicy(AssignmentPolicyEnforcementType.RELATIVE);
-		
+
+        //initProfiling - start
+        ProfilingDataManager profilingManager = ProfilingDataManager.getInstance();
+
+        Map<ProfilingDataManager.Subsystem, Boolean> subsystems = new HashMap<>();
+        subsystems.put(ProfilingDataManager.Subsystem.MODEL, true);
+        subsystems.put(ProfilingDataManager.Subsystem.REPOSITORY, true);
+        profilingManager.configureProfilingDataManagerForTest(subsystems, true);
+
+        profilingManager.appendProfilingToTest();
+        //initProfiling - end
+
 		display("initial LDAP content", openDJController.dumpEntries());
 	}
 	
@@ -289,7 +301,7 @@ public class TestLdap extends AbstractModelIntegrationTest {
         assertNoOpenDjAccount(ACCOUNT_LECHUCK_NAME);
 	}
 	
-	@Test(enabled = false)
+	@Test
     public void test800BigLdapSearch() throws Exception {
 		final String TEST_NAME = "test800BigLdapSearch";
         TestUtil.displayTestTile(this, TEST_NAME);
@@ -413,7 +425,7 @@ public class TestLdap extends AbstractModelIntegrationTest {
         
         long ldapPopEnd = System.currentTimeMillis();
         
-        display("Loaded "+NUM_LDAP_ENTRIES+" LDAP entries in "+((ldapPopEnd-ldapPopStart)/1000)+" seconds");
+        display("Loaded "+NUM_LDAP_ENTRIES+" LDAP entries (prefix "+prefix+") in "+((ldapPopEnd-ldapPopStart)/1000)+" seconds");
 	}
 
 	private Entry createEntry(String uid, String name) throws IOException, LDIFException {

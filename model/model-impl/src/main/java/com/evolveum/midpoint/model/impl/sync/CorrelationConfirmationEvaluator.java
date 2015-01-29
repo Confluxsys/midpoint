@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.commons.lang.Validate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Element;
 
@@ -69,6 +70,7 @@ public class CorrelationConfirmationEvaluator {
 	private static transient Trace LOGGER = TraceManager.getTrace(CorrelationConfirmationEvaluator.class);
 
 	@Autowired(required = true)
+	@Qualifier("cacheRepositoryService")
 	private RepositoryService repositoryService;
 
 	@Autowired(required = true)
@@ -179,7 +181,7 @@ public class CorrelationConfirmationEvaluator {
 				return null;
 			}
 			
-			ObjectQuery q = null;
+			ObjectQuery q;
 			try {
 				q = QueryJaxbConvertor.createObjectQuery(focusType, conditionalFilter, prismContext);
 				q = updateFilterWithAccountValues(currentShadow, resourceType, configurationType, q, "Correlation expression", task, result);
@@ -246,11 +248,13 @@ private <F extends FocusType> boolean matchUserCorrelationRule(Class<F> focusTyp
 		return false;
 	}
 
-	ObjectQuery q = null;
+	ObjectQuery q;
 	try {
 		q = QueryJaxbConvertor.createObjectQuery(focusType, conditionalFilter, prismContext);
 		q = updateFilterWithAccountValues(currentShadow.asObjectable(), resourceType, configurationType, q, "Correlation expression", task, result);
-		LOGGER.debug("Start matching user {} with correlation eqpression {}", userType, q.debugDump());
+		if (LOGGER.isDebugEnabled()) {
+			LOGGER.debug("Start matching user {} with correlation expression {}", userType, q != null ? q.debugDump() : "(null)");
+		}
 		if (q == null) {
 			// Null is OK here, it means that the value in the filter
 			// evaluated
@@ -352,7 +356,7 @@ private <F extends FocusType> boolean matchUserCorrelationRule(Class<F> focusTyp
 			ObjectQuery origQuery, String shortDesc, Task task, OperationResult result) throws SchemaException, ObjectNotFoundException, ExpressionEvaluationException {
 		
 		if (origQuery.getFilter() == null) {
-			LOGGER.trace("No filter provivided, skipping updating filter");
+			LOGGER.trace("No filter provided, skipping updating filter");
 			return origQuery;
 		}
 		

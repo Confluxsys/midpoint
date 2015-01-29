@@ -21,6 +21,7 @@ import static com.evolveum.midpoint.model.api.ProgressInformation.ActivityType.F
 import static com.evolveum.midpoint.model.api.ProgressInformation.ActivityType.RESOURCE_OBJECT_OPERATION;
 import static com.evolveum.midpoint.model.api.ProgressInformation.StateType.ENTERING;
 
+import com.evolveum.midpoint.common.Clock;
 import com.evolveum.midpoint.common.refinery.ResourceShadowDiscriminator;
 import com.evolveum.midpoint.model.api.ModelAuthorizationAction;
 import com.evolveum.midpoint.model.api.ModelExecuteOptions;
@@ -30,6 +31,7 @@ import com.evolveum.midpoint.model.common.expression.Expression;
 import com.evolveum.midpoint.model.common.expression.ExpressionEvaluationContext;
 import com.evolveum.midpoint.model.common.expression.ExpressionFactory;
 import com.evolveum.midpoint.model.common.expression.ExpressionVariables;
+import com.evolveum.midpoint.model.impl.lens.projector.FocusConstraintsChecker;
 import com.evolveum.midpoint.model.impl.util.Utils;
 import com.evolveum.midpoint.prism.ConsistencyCheckScope;
 import com.evolveum.midpoint.prism.PrismContext;
@@ -131,6 +133,9 @@ public class ChangeExecutor {
     @Autowired(required = false)
     private WorkflowManager workflowManager;
     
+    @Autowired(required = true)
+    private Clock clock;
+    
     private PrismObjectDefinition<UserType> userDefinition = null;
     private PrismObjectDefinition<ShadowType> shadowDefinition = null;
     
@@ -231,7 +236,7 @@ public class ChangeExecutor {
 				
 				ObjectDelta<ShadowType> accDelta = accCtx.getExecutableDelta();
 				if (accCtx.getSynchronizationPolicyDecision() == SynchronizationPolicyDecision.BROKEN) {
-					if (syncContext.getFocusContext().getDelta() != null
+					if (syncContext.getFocusContext() != null && syncContext.getFocusContext().getDelta() != null
 							&& syncContext.getFocusContext().getDelta().isDelete()
 							&& syncContext.getOptions() != null
 							&& ModelExecuteOptions.isForce(syncContext.getOptions())) {
@@ -590,15 +595,14 @@ public class ChangeExecutor {
         if (objectDelta.getOid() == null) {
         	objectDelta.setOid(objectContext.getOid());
         }
-        
-        if (alreadyExecuted(objectDelta, objectContext)) {
+
+		objectDelta = computeDeltaToExecute(objectDelta, objectContext);
+		if (LOGGER.isTraceEnabled()) {
+			LOGGER.trace("computeDeltaToExecute returned:\n{}", objectDelta!=null ? objectDelta.debugDump() : "(null)");
+		}
+
+		if (objectDelta == null || objectDelta.isEmpty()) {
         	LOGGER.debug("Skipping execution of delta because it was already executed: {}", objectContext);
-        	return;
-        }
-        
-//        removeExecutedItemDeltas(objectDelta, objectContext);
-        
-        if (objectDelta.isEmpty()){
         	return;
         }
         
@@ -650,7 +654,7 @@ public class ChangeExecutor {
 	    	}
     	}
     }
-	
+
 	private <T extends ObjectType, F extends FocusType> void removeExecutedItemDeltas(
 			ObjectDelta<T> objectDelta, LensElementContext<T> objectContext) {
 		if (objectContext == null){
@@ -678,7 +682,7 @@ public class ChangeExecutor {
 		}
 	}
 	
-	
+	// TODO beware - what if the delta was executed but not successfully?
 	private <T extends ObjectType, F extends FocusType> boolean alreadyExecuted(
 			ObjectDelta<T> objectDelta, LensElementContext<T> objectContext) {
 		if (objectContext == null) {
@@ -690,7 +694,143 @@ public class ChangeExecutor {
 		}
 		return ObjectDeltaOperation.containsDelta(objectContext.getExecutedDeltas(), objectDelta);
 	}
-	
+
+	/**
+	 * Was this object already added? (temporary method, should be removed soon)
+	 */
+	private <T extends ObjectType> boolean wasAdded(List<LensObjectDeltaOperation<T>> executedOperations, String oid) {
+		for (LensObjectDeltaOperation operation : executedOperations) {
+			if (operation.getObjectDelta().isAdd() &&
+					oid.equals(operation.getObjectDelta().getOid()) &&
+					!operation.getExecutionResult().isFatalError()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Computes delta to execute, given a list of already executes deltas. See below.
+	 */
+	private <T extends ObjectType> ObjectDelta<T> computeDeltaToExecute(
+			ObjectDelta<T> objectDelta, LensElementContext<T> objectContext) {
+		if (objectContext == null) {
+			return objectDelta;
+		}
+		if (LOGGER.isTraceEnabled()) {
+			LOGGER.trace("Computing delta to execute from delta:\n{}\nGiven these executed deltas:\n{}",
+					objectDelta.debugDump(), DebugUtil.debugDump(objectContext.getExecutedDeltas()));
+		}
+		List<LensObjectDeltaOperation<T>> executedDeltas = objectContext.getExecutedDeltas();
+		return computeDiffDelta(executedDeltas, objectDelta);
+	}
+
+	/**
+	 * Compute a "difference delta" - given that executedDeltas were executed, and objectDelta is about to be executed;
+	 * eliminates parts that have already been done. It is meant as a kind of optimization (for MODIFY deltas) and
+	 * error avoidance (for ADD deltas).
+	 *
+	 * Explanation for ADD deltas: there are situations where an execution wave is restarted - when unexpected AlreadyExistsException
+	 * is reported from provisioning. However, in such cases, duplicate ADD Focus deltas were generated. So we (TEMPORARILY!) decided
+	 * to filter them out here.
+	 *
+	 * Unfortunately, this mechanism is not well-defined, and seems to work more "by accident" than "by design".
+	 * It should be replaced with something more serious. Perhaps by re-reading current focus state when repeating a wave?
+	 * Actually, it is a supplement for rewriting ADD->MODIFY deltas in LensElementContext.getFixedPrimaryDelta.
+	 * That method converts primary deltas (and as far as I know, that is the only place where this problem should occur).
+	 * Nevertheless, for historical and safety reasons I keep also the processing in this method.
+	 *
+	 * Anyway, currently it treats only two cases:
+	 * 1) if the objectDelta is present in the list of executed deltas
+	 * 2) if the objectDelta is ADD, and another ADD delta is there (then the difference is computed)
+	 *
+	 */
+	private <T extends ObjectType> ObjectDelta<T> computeDiffDelta(List<? extends ObjectDeltaOperation<T>> executedDeltas, ObjectDelta<T> objectDelta) {
+		if (executedDeltas == null || executedDeltas.isEmpty()) {
+			return objectDelta;
+		}
+
+		ObjectDeltaOperation<T> lastRelated = findLastRelatedDelta(executedDeltas, objectDelta);		// any delta related to our OID, not ending with fatal error
+		if (LOGGER.isTraceEnabled()) {
+			LOGGER.trace("findLastRelatedDelta returned:\n{}", lastRelated!=null ? lastRelated.debugDump() : "(null)");
+		}
+		if (lastRelated == null) {
+			return objectDelta;			// nothing found, let us apply our delta
+		}
+		if (lastRelated.getExecutionResult().isSuccess() && lastRelated.containsDelta(objectDelta)) {
+			return null;				// case 1 - exact match found with SUCCESS result, let's skip the processing of our delta
+		}
+		if (!objectDelta.isAdd()) {
+			return objectDelta;			// MODIFY or DELETE delta - we may safely apply it (not 100% sure about DELETE case)
+		}
+		// determine if we got case 2
+		if (lastRelated.getObjectDelta().isDelete()) {
+			return objectDelta;			// we can (and should) apply the ADD delta as a whole, because the object was deleted
+		}
+		// let us treat the most simple case here - meaning we have existing ADD delta and nothing more
+		// TODO add more sophistication if needed
+		if (!lastRelated.getObjectDelta().isAdd()) {
+			return objectDelta;			// this will probably fail, but ...
+		}
+		// at this point we know that ADD was more-or-less successfully executed, so let's compute the difference, creating a MODIFY delta
+		PrismObject<T> alreadyAdded = lastRelated.getObjectDelta().getObjectToAdd();
+		PrismObject<T> toBeAddedNow = objectDelta.getObjectToAdd();
+		return alreadyAdded.diff(toBeAddedNow);
+	}
+
+	private <T extends ObjectType> ObjectDeltaOperation<T> findLastRelatedDelta(List<? extends ObjectDeltaOperation<T>> executedDeltas, ObjectDelta<T> objectDelta) {
+		for (int i = executedDeltas.size()-1; i >= 0; i--) {
+			ObjectDeltaOperation<T> currentOdo = executedDeltas.get(i);
+			if (!currentOdo.getExecutionResult().isFatalError()) {
+				ObjectDelta<T> current = currentOdo.getObjectDelta();
+
+				if (current.equals(objectDelta)) {
+					return currentOdo;
+				}
+
+				String oid1 = current.isAdd() ? current.getObjectToAdd().getOid() : current.getOid();
+				String oid2 = objectDelta.isAdd() ? objectDelta.getObjectToAdd().getOid() : objectDelta.getOid();
+				if (oid1 != null && oid2 != null) {
+					if (oid1.equals(oid2)) {
+						return currentOdo;
+					}
+					continue;
+				}
+				// ADD-MODIFY and ADD-DELETE combinations lead to applying whole delta (as a result of computeDiffDelta)
+				// so we can be lazy and check only ADD-ADD combinations here...
+				if (!current.isAdd() || !objectDelta.isAdd()) {
+					continue;
+				}
+				// we simply check the type (for focus objects) and resource+kind+intent (for shadows)
+				PrismObject<T> currentObject = current.getObjectToAdd();
+				PrismObject<T> objectTypeToAdd = objectDelta.getObjectToAdd();
+				Class currentObjectClass = currentObject.getCompileTimeClass();
+				Class objectTypeToAddClass = objectTypeToAdd.getCompileTimeClass();
+				if (currentObjectClass == null || !currentObjectClass.equals(objectTypeToAddClass)) {
+					continue;
+				}
+				if (FocusType.class.isAssignableFrom(currentObjectClass)) {
+					return currentOdo;        // we suppose there is only one delta of Focus class
+				}
+				// Shadow deltas have to be matched exactly... because "ADD largo" and "ADD largo1" are two different deltas
+				// And, this is not a big problem, because ADD conflicts are treated by provisioning
+				// Again, all this stuff is highly temporary and has to be thrown away as soon as possible!!!
+				continue;
+//				if (ShadowType.class.equals(currentObjectClass)) {
+//					ShadowType currentShadow = (ShadowType) currentObject.asObjectable();
+//					ShadowType shadowToAdd = (ShadowType) objectTypeToAdd.asObjectable();
+//					if (currentShadow.getResourceRef() != null && shadowToAdd.getResourceRef() != null &&
+//							currentShadow.getResourceRef().getOid().equals(shadowToAdd.getResourceRef().getOid()) &&
+//							currentShadow.getKind() == shadowToAdd.getKind() && // TODO default kind handling
+//							currentShadow.getIntent() != null && currentShadow.getIntent().equals(shadowToAdd.getIntent())) { // TODO default intent handling
+//						return currentOdo;
+//					}
+//				}
+			}
+		}
+		return null;
+	}
+
 	private ProvisioningOperationOptions copyFromModelOptions(ModelExecuteOptions options) {
 		ProvisioningOperationOptions provisioningOptions = new ProvisioningOperationOptions();
 		if (options == null){
@@ -741,8 +881,16 @@ public class ChangeExecutor {
 				LensFocusContext<F> focusContext = (LensFocusContext<F>) context.getFocusContext();
 				if (focusContext == null) {
 					return null;
-				} else {
+				} else if (focusContext.getObjectNew() != null) {
+					// If we create both owner and shadow in the same operation (see e.g. MID-2027), we have to provide object new
+					// Moreover, if the authorization would be based on a property that is being changed along with the
+					// the change being authorized, we would like to use changed version.
+					return focusContext.getObjectNew();
+				} else if (focusContext.getObjectCurrent() != null) {
+					// This could be useful if the owner is being deleted.
 					return focusContext.getObjectCurrent();
+				} else {
+					return null;
 				}
 			}
 		};
@@ -793,6 +941,8 @@ public class ChangeExecutor {
             }
             result.addReturn("createdAccountOid", oid);
         } else {
+			FocusConstraintsChecker.clearCacheFor(objectToAdd.asObjectable().getName());
+
         	RepoAddOptions addOpt = new RepoAddOptions();
         	if (ModelExecuteOptions.isOverwrite(options)){
         		addOpt.setOverwrite(true);
@@ -881,6 +1031,7 @@ public class ChangeExecutor {
                 change.setOid(oid);
             }
         } else {
+			FocusConstraintsChecker.clearCacheForDelta(change.getModifications());
             cacheRepositoryService.modifyObject(objectTypeClass, change.getOid(), change.getModifications(), result);
         }
     }
@@ -889,12 +1040,13 @@ public class ChangeExecutor {
 		MetadataType metaData = new MetadataType();
 		String channel = getChannel(context, task);
 		metaData.setCreateChannel(channel);
-		metaData.setCreateTimestamp(XmlTypeConverter.createXMLGregorianCalendar(System.currentTimeMillis()));
+		metaData.setCreateTimestamp(clock.currentTimeXMLGregorianCalendar());
 		if (task.getOwner() != null) {
 			metaData.setCreatorRef(ObjectTypeUtil.createObjectRef(task.getOwner()));
 		}
         if (workflowManager != null) {
-            metaData.getCreateApproverRef().addAll(workflowManager.getApprovedBy(task, result));
+            // FIXME temporarily disabled because of MID-2178
+//            metaData.getCreateApproverRef().addAll(workflowManager.getApprovedBy(task, result));
         }
 
 		objectTypeToAdd.setMetadata(metaData);
@@ -934,37 +1086,37 @@ public class ChangeExecutor {
                 approverReferenceValues.add(new PrismReferenceValue(approverRef.getOid()));
             }
         }
-
-        if (!approverReferenceValues.isEmpty()) {
-            ReferenceDelta refDelta = ReferenceDelta.createModificationReplace((new ItemPath(ObjectType.F_METADATA,
-                        MetadataType.F_MODIFY_APPROVER_REF)), def, approverReferenceValues);
-            ((Collection) change.getModifications()).add(refDelta);
-        } else {
-
-            // a bit of hack - we want to replace all existing values with empty set of values;
-            // however, it is not possible to do this using REPLACE, so we have to explicitly remove all existing values
-
-            if (objectContext != null && objectContext.getObjectOld() != null) {
-                // a null value of objectOld means that we execute MODIFY delta that is a part of primary ADD operation (in a wave greater than 0)
-                // i.e. there are NO modifyApprovers set (theoretically they could be set in previous waves, but because in these waves the data
-                // are taken from the same source as in this step - so there are none modify approvers).
-
-                if (objectContext.getObjectOld().asObjectable().getMetadata() != null) {
-                    List<ObjectReferenceType> existingModifyApproverRefs = objectContext.getObjectOld().asObjectable().getMetadata().getModifyApproverRef();
-                    LOGGER.trace("Original values of MODIFY_APPROVER_REF: {}", existingModifyApproverRefs);
-
-                    if (!existingModifyApproverRefs.isEmpty()) {
-                        List<PrismReferenceValue> valuesToDelete = new ArrayList<PrismReferenceValue>();
-                        for (ObjectReferenceType approverRef : objectContext.getObjectOld().asObjectable().getMetadata().getModifyApproverRef()) {
-                            valuesToDelete.add(approverRef.asReferenceValue().clone());
-                        }
-                        ReferenceDelta refDelta = ReferenceDelta.createModificationDelete((new ItemPath(ObjectType.F_METADATA,
-                                MetadataType.F_MODIFY_APPROVER_REF)), def, valuesToDelete);
-                        ((Collection) change.getModifications()).add(refDelta);
-                    }
-                }
-            }
-        }
+        // FIXME temporarily disabled because of MID-2178
+//        if (!approverReferenceValues.isEmpty()) {
+//            ReferenceDelta refDelta = ReferenceDelta.createModificationReplace((new ItemPath(ObjectType.F_METADATA,
+//                        MetadataType.F_MODIFY_APPROVER_REF)), def, approverReferenceValues);
+//            ((Collection) change.getModifications()).add(refDelta);
+//        } else {
+//
+//            // a bit of hack - we want to replace all existing values with empty set of values;
+//            // however, it is not possible to do this using REPLACE, so we have to explicitly remove all existing values
+//
+//            if (objectContext != null && objectContext.getObjectOld() != null) {
+//                // a null value of objectOld means that we execute MODIFY delta that is a part of primary ADD operation (in a wave greater than 0)
+//                // i.e. there are NO modifyApprovers set (theoretically they could be set in previous waves, but because in these waves the data
+//                // are taken from the same source as in this step - so there are none modify approvers).
+//
+//                if (objectContext.getObjectOld().asObjectable().getMetadata() != null) {
+//                    List<ObjectReferenceType> existingModifyApproverRefs = objectContext.getObjectOld().asObjectable().getMetadata().getModifyApproverRef();
+//                    LOGGER.trace("Original values of MODIFY_APPROVER_REF: {}", existingModifyApproverRefs);
+//
+//                    if (!existingModifyApproverRefs.isEmpty()) {
+//                        List<PrismReferenceValue> valuesToDelete = new ArrayList<PrismReferenceValue>();
+//                        for (ObjectReferenceType approverRef : objectContext.getObjectOld().asObjectable().getMetadata().getModifyApproverRef()) {
+//                            valuesToDelete.add(approverRef.asReferenceValue().clone());
+//                        }
+//                        ReferenceDelta refDelta = ReferenceDelta.createModificationDelete((new ItemPath(ObjectType.F_METADATA,
+//                                MetadataType.F_MODIFY_APPROVER_REF)), def, valuesToDelete);
+//                        ((Collection) change.getModifications()).add(refDelta);
+//                    }
+//                }
+//            }
+//        }
 
     }
 

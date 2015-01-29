@@ -21,7 +21,6 @@ import com.evolveum.midpoint.prism.PrismProperty;
 import com.evolveum.midpoint.prism.PrismPropertyDefinition;
 import com.evolveum.midpoint.prism.PrismPropertyValue;
 import com.evolveum.midpoint.prism.path.ItemPath;
-import com.evolveum.midpoint.prism.xjc.AnyArrayList;
 import com.evolveum.midpoint.prism.xml.XsdTypeMapper;
 import com.evolveum.midpoint.schema.constants.SchemaConstants;
 import com.evolveum.midpoint.schema.processor.ResourceAttribute;
@@ -35,8 +34,6 @@ import com.evolveum.midpoint.web.util.WebMiscUtil;
 import com.evolveum.midpoint.xml.ns._public.common.common_3.*;
 import com.evolveum.midpoint.xml.ns.model.workflow.common_forms_3.RoleApprovalFormType;
 import com.evolveum.prism.xml.ns._public.types_3.ProtectedStringType;
-import com.sun.org.apache.xerces.internal.dom.ElementNSImpl;
-import com.sun.org.apache.xerces.internal.dom.TextImpl;
 
 import org.apache.commons.lang.ClassUtils;
 import org.apache.commons.lang.Validate;
@@ -430,38 +427,33 @@ public class PrismValuePanel extends Panel {
         return panel;
     }
 
-    //TODO - try to get rid of <br> attributes when creating new lines in association attibutes pop-up
+    //TODO - try to get rid of <br> attributes when creating new lines in association attributes pop-up
     private String createAssociationTooltipText(PrismProperty property){
         StringBuilder sb = new StringBuilder();
         sb.append(getString("prismValuePanel.message.association.attributes")).append("<br>");
 
         if(property.getParent() != null && property.getParent().getParent() != null){
             PrismObject<ShadowType> shadowPrism = (PrismObject<ShadowType>)property.getParent().getParent();
-            ShadowType shadow = shadowPrism.asObjectable();
 
             Collection<ResourceAttribute<?>> attributes = ShadowUtil.getAttributes(shadowPrism);
             if (attributes == null || attributes.isEmpty()){
             	return sb.toString();
             }
-            
+
+            //TODO - this is a dirty fix for situation, when attribute value is too long and it is a string without white chars,
+            //thus it will not break in tooltip. break-all is also not good, since it can brake in the middle of words. What we
+            //are doing here is replacing every, with ,&#8203;, &#8203; (the same with @) is a zero-width space, so the attribute value
+            //will break after comma. This dirty fix will be removed when association editor is completed.
             for (ResourceAttribute<?> attr : attributes){
             	for (Object realValue : attr.getRealValues()){
             		sb.append(getAttributeName(attr));
                 	sb.append(":");
-            		sb.append(realValue);
+                    if (realValue != null) {
+                        sb.append(realValue.toString().replace(",", ",&#8203;").replace("@", "@&#8203;"));
+                    }
             		sb.append("<br>");
             	}
             }
-//            if(shadow.getAttributes() != null){
-//                ShadowAttributesType attributes = shadow.getAttributes();
-//                AnyArrayList attrs = (AnyArrayList)attributes.getAny();
-//
-//                for(Object o: attrs){
-//                    ElementNSImpl element = (ElementNSImpl)o;
-//                    sb.append(element.getLocalName() + ": ");
-//                    sb.append(((TextImpl)element.getFirstChild()).getData() + "<br>");
-//                }
-//            }
         }
 
         return sb.toString();

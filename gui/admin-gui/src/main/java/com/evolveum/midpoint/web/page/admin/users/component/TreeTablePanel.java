@@ -174,26 +174,11 @@ public class TreeTablePanel extends SimplePanel<String> {
 
             @Override
             public ObjectQuery createRootQuery(){
-                ArrayList<String> oids = new ArrayList<String>();
+                ArrayList<String> oids = new ArrayList<>();
                 ObjectQuery query = new ObjectQuery();
 
                 if(isMovingRoot() && getRootFromProvider() != null){
                     oids.add(getRootFromProvider().getOid());
-                }
-
-                //Selection from table, but only if we are not moving root
-                if(!isMovingRoot()){
-                    oids.remove(getRootFromProvider().getOid());
-
-                    List<OrgTableDto> objects = WebMiscUtil.getSelectedData(getTable());
-                    if(!objects.isEmpty()){
-                        for(OrgTableDto dto: objects){
-                            oids.add(dto.getOid());
-
-                            //TODO - uncomment this, if parentOrgOid filtering is also required (see issue MID-1780)
-                            //oids.addAll(getOrgParentOids(dto.getOid()));
-                        }
-                    }
                 }
 
                 if(oids.isEmpty()){
@@ -238,7 +223,7 @@ public class TreeTablePanel extends SimplePanel<String> {
         treeHeader.add(treeMenu);
 
         ISortableTreeProvider provider = new OrgTreeProvider(this, getModel());
-        List<IColumn<OrgTreeDto, String>> columns = new ArrayList<IColumn<OrgTreeDto, String>>();
+        List<IColumn<OrgTreeDto, String>> columns = new ArrayList<>();
         columns.add(new TreeColumn<OrgTreeDto, String>(createStringResource("TreeTablePanel.hierarchy")));
 
         WebMarkupContainer treeContainer = new WebMarkupContainer(ID_TREE_CONTAINER) {
@@ -299,7 +284,7 @@ public class TreeTablePanel extends SimplePanel<String> {
     }
 
     private List<String> getOrgParentOids(String orgOid){
-        List<String> parentOids = new ArrayList<String>();
+        List<String> parentOids = new ArrayList<>();
         OperationResult result = new OperationResult(OPERATION_LOAD_PARENTS);
         PrismObject<OrgType> org = WebModelUtils.loadObject(OrgType.class, orgOid, result, getPageBase());
         OrgType orgObject = org.asObjectable();
@@ -329,12 +314,22 @@ public class TreeTablePanel extends SimplePanel<String> {
                 return createTableQuery();
             }
         };
+
+        //TODO - fix the problem with getting itemsPerPage during layout construction
         tableProvider.setOptions(WebModelUtils.createMinimalOptions());
         List<IColumn<OrgTableDto, String>> tableColumns = createTableColumns();
-        TablePanel table = new TablePanel(ID_TABLE, tableProvider, tableColumns, UserProfileStorage.TableId.TREE_TABLE_PANEL);
+        TablePanel table = new TablePanel(ID_TABLE, tableProvider, tableColumns,
+                UserProfileStorage.TableId.TREE_TABLE_PANEL, UserProfileStorage.DEFAULT_PAGING_SIZE);
         table.setOutputMarkupId(true);
         form.add(table);
     }
+
+//    public long getItemsPerPage(UserProfileStorage.TableId tableId){
+//
+//        SessionStorage storage = getPageBase().getSessionStorage();
+//        UserProfileStorage userProfile = storage.getUserProfile();
+//        return userProfile.getPagingSize(tableId);
+//    }
 
     private void initSearch() {
         Form form = new Form(ID_SEARCH_FORM);
@@ -357,7 +352,7 @@ public class TreeTablePanel extends SimplePanel<String> {
     }
 
     private List<InlineMenuItem> createTreeMenu() {
-        List<InlineMenuItem> items = new ArrayList<InlineMenuItem>();
+        List<InlineMenuItem> items = new ArrayList<>();
 
         InlineMenuItem item = new InlineMenuItem(createStringResource("TreeTablePanel.collapseAll"),
                 new InlineMenuItemAction() {
@@ -447,7 +442,7 @@ public class TreeTablePanel extends SimplePanel<String> {
     }
 
     private List<IColumn<OrgTableDto, String>> createTableColumns() {
-        List<IColumn<OrgTableDto, String>> columns = new ArrayList<IColumn<OrgTableDto, String>>();
+        List<IColumn<OrgTableDto, String>> columns = new ArrayList<>();
 
         columns.add(new CheckBoxHeaderColumn<OrgTableDto>());
         columns.add(new IconColumn<OrgTableDto>(createStringResource("")) {
@@ -494,7 +489,7 @@ public class TreeTablePanel extends SimplePanel<String> {
     }
 
     private List<InlineMenuItem> initInlineMenu() {
-        List<InlineMenuItem> headerMenuItems = new ArrayList<InlineMenuItem>();
+        List<InlineMenuItem> headerMenuItems = new ArrayList<>();
         headerMenuItems.add(new InlineMenuItem(createStringResource("TreeTablePanel.menu.addOrgUnit"), false,
                 new HeaderMenuAction(this) {
 

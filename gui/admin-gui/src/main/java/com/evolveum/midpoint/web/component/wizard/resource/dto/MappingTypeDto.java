@@ -73,27 +73,17 @@ public class MappingTypeDto implements Serializable {
         }
 
         if(mapping == null){
-            mappingObject = new MappingType();
+            MappingType newMapping = new MappingType();
+            newMapping.setAuthoritative(true);
+            mappingObject = newMapping;
         } else {
             mappingObject = mapping;
-        }
-
-        if(mappingObject.getChannel().isEmpty()){
-            mappingObject.getChannel().add(new String());
-        }
-
-        if(mappingObject.getExceptChannel().isEmpty()){
-        mappingObject.getExceptChannel().add(new String());
         }
 
         for(MappingSourceDeclarationType mappingSource: mappingObject.getSource()){
             if(mappingSource.getPath() != null && mappingSource.getPath().getItemPath() != null){
                 source.add(mappingSource.getPath().getItemPath().toString());
             }
-        }
-
-        if(source.isEmpty()){
-            source.add(new String());
         }
 
         if(mappingObject.getTarget() != null && mappingObject.getTarget().getPath() != null
@@ -163,17 +153,10 @@ public class MappingTypeDto implements Serializable {
             mappingObject.setTarget(mappingTarget);
         }
 
-        List<String> existingSources = new ArrayList<>();
-        for(MappingSourceDeclarationType s: mappingObject.getSource()){
-            if(s.getPath() != null && s.getPath().getItemPath() != null){
-                existingSources.add(s.getPath().getItemPath().toString());
-            }
-        }
-
+        mappingObject.getSource().clear();
         List<MappingSourceDeclarationType> mappingSourceList = new ArrayList<>();
         for(String s: source){
-
-            if(s == null || existingSources.contains(s)){
+            if(s == null){
                 continue;
             }
 
@@ -380,5 +363,4 @@ public class MappingTypeDto implements Serializable {
 
         return sb.toString();
     }
-
 }

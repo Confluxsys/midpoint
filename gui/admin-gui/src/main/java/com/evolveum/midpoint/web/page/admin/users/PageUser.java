@@ -700,9 +700,10 @@ public class PageUser extends PageAdminUsers implements ProgressReportingAwarePa
                 	List<PrismProperty> associations = new ArrayList<>(associationContainer.getValues().size());
                 	for (PrismContainerValue associationVal : associationContainer.getValues()){
                 		ShadowAssociationType associationType = (ShadowAssociationType) associationVal.asContainerable();
-                		PrismObject<ShadowType> association = getModelService().getObject(ShadowType.class, associationType.getShadowRef().getOid(), null, task, subResult);
+                        // we can safely eliminate fetching from resource, because we need only the name
+                		PrismObject<ShadowType> association = getModelService().getObject(ShadowType.class, associationType.getShadowRef().getOid(),
+                                SelectorOptions.createCollection(GetOperationOptions.createNoFetch()), task, subResult);
                 		associations.add(association.findProperty(ShadowType.F_NAME));
-                		
                 	}
                 	
                 	wrapper.setAssociations(associations);
@@ -969,7 +970,13 @@ public class PageUser extends PageAdminUsers implements ProgressReportingAwarePa
         ModalWindow window = createModalWindow(MODAL_ID_RESOURCE,
                 createStringResource("pageUser.title.selectResource"), 1100, 560);
 
-        final SimpleUserResourceProvider provider = new SimpleUserResourceProvider(this, accountsModel);
+        final SimpleUserResourceProvider provider = new SimpleUserResourceProvider(this, accountsModel){
+
+            @Override
+            protected void handlePartialError(OperationResult result) {
+                showResult(result);
+            }
+        };
         window.setContent(new ResourcesPopup(window.getContentId()) {
 
             @Override
@@ -1017,7 +1024,7 @@ public class PageUser extends PageAdminUsers implements ProgressReportingAwarePa
         if (PageOrgTree.PARAM_ORG_RETURN.equals(orgReturn.toString())) {
             setResponsePage(PageOrgTree.class);
         } else {
-            setResponsePage(PageUsers.class);
+            setResponsePage(new PageUsers(false));
         }
 
         // }
@@ -1252,7 +1259,7 @@ public class PageUser extends PageAdminUsers implements ProgressReportingAwarePa
         }
 
         if (!assDelta.isEmpty()) {
-            userDelta.addModification(assDelta);
+        	assDelta = userDelta.addModification(assDelta);
         }
 
         // todo remove this block [lazyman] after model is updated - it has to
@@ -1456,7 +1463,7 @@ public class PageUser extends PageAdminUsers implements ProgressReportingAwarePa
                     && PageOrgTree.PARAM_ORG_RETURN.equals(returnPage.toString())) {
                 setResponsePage(PageOrgTree.class);
             } else {
-                setResponsePage(PageUsers.class);
+                setResponsePage(new PageUsers(false));
             }
         } else {
             showResult(result);

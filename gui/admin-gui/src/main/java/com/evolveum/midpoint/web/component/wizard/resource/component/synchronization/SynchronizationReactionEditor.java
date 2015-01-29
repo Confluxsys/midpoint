@@ -25,6 +25,7 @@ import com.evolveum.midpoint.util.logging.Trace;
 import com.evolveum.midpoint.util.logging.TraceManager;
 import com.evolveum.midpoint.web.component.form.multivalue.MultiValueDropDownPanel;
 import com.evolveum.midpoint.web.component.form.multivalue.MultiValueTextEditPanel;
+import com.evolveum.midpoint.web.component.input.ThreeStateBooleanPanel;
 import com.evolveum.midpoint.web.component.util.SimplePanel;
 import com.evolveum.midpoint.web.util.InfoTooltipBehavior;
 import com.evolveum.midpoint.web.util.WebMiscUtil;
@@ -108,7 +109,7 @@ public class SynchronizationReactionEditor extends SimplePanel<SynchronizationRe
         add(situation);
 
         MultiValueDropDownPanel channel = new MultiValueDropDownPanel<String>(ID_CHANNEL,
-                new PropertyModel<List<String>>(getModel(), "channel"), true, true){
+                new PropertyModel<List<String>>(getModel(), "channel"), true){
 
             @Override
             protected String createNewEmptyItem() {
@@ -147,7 +148,7 @@ public class SynchronizationReactionEditor extends SimplePanel<SynchronizationRe
         };
         add(channel);
 
-        CheckBox synchronize = new CheckBox(ID_SYNCHRONIZE, new PropertyModel<Boolean>(getModel(), "synchronize"));
+        ThreeStateBooleanPanel synchronize = new ThreeStateBooleanPanel(ID_SYNCHRONIZE, new PropertyModel<Boolean>(getModel(), "synchronize"));
         add(synchronize);
 
         CheckBox reconcile = new CheckBox(ID_RECONCILE, new PropertyModel<Boolean>(getModel(), "reconcile"));
@@ -177,7 +178,7 @@ public class SynchronizationReactionEditor extends SimplePanel<SynchronizationRe
         add(objectTemplateRef);
 
         MultiValueTextEditPanel action = new MultiValueTextEditPanel<SynchronizationActionType>(ID_ACTION,
-                new PropertyModel<List<SynchronizationActionType>>(getModel(), "action"), false, true){
+                new PropertyModel<List<SynchronizationActionType>>(getModel(), "action"), false){
 
             @Override
             protected IModel<String> createTextModel(final IModel<SynchronizationActionType> model) {
@@ -241,7 +242,7 @@ public class SynchronizationReactionEditor extends SimplePanel<SynchronizationRe
 
             @Override
             public void updateComponents(AjaxRequestTarget target){
-                target.add(SynchronizationReactionEditor.this);
+                target.add(SynchronizationReactionEditor.this.get(ID_ACTION));
             }
         };
         add(actionEditor);
@@ -287,5 +288,4 @@ public class SynchronizationReactionEditor extends SimplePanel<SynchronizationRe
         window.updateModel(target, action);
         window.show(target);
     }
-
 }

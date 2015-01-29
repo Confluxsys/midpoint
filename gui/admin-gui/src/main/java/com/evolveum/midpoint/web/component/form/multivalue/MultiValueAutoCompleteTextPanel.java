@@ -17,14 +17,18 @@
 package com.evolveum.midpoint.web.component.form.multivalue;
 
 import com.evolveum.midpoint.web.component.util.SimplePanel;
+import com.evolveum.midpoint.web.component.util.VisibleEnableBehaviour;
 import org.apache.wicket.AttributeModifier;
 import org.apache.wicket.ajax.AjaxRequestTarget;
+import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.AjaxLink;
 import org.apache.wicket.behavior.AttributeAppender;
+import org.apache.wicket.extensions.ajax.markup.html.autocomplete.AutoCompleteSettings;
 import org.apache.wicket.extensions.ajax.markup.html.autocomplete.AutoCompleteTextField;
 import org.apache.wicket.markup.html.WebMarkupContainer;
 import org.apache.wicket.markup.html.list.ListItem;
 import org.apache.wicket.markup.html.list.ListView;
+import org.apache.wicket.model.AbstractReadOnlyModel;
 import org.apache.wicket.model.IModel;
 import org.apache.wicket.model.StringResourceModel;
 import org.apache.wicket.util.string.Strings;
@@ -38,6 +42,8 @@ import java.util.*;
  * */
 public class MultiValueAutoCompleteTextPanel<T extends Serializable> extends SimplePanel<List<T>>{
 
+    private static final String ID_PLACEHOLDER_CONTAINER = "placeholderContainer";
+    private static final String ID_PLACEHOLDER_ADD = "placeholderAdd";
     private static final String ID_REPEATER = "repeater";
     private static final String ID_TEXT = "input";
     private static final String ID_BUTTON_GROUP = "buttonGroup";
@@ -47,63 +53,68 @@ public class MultiValueAutoCompleteTextPanel<T extends Serializable> extends Sim
     private static final String CSS_DISABLED = " disabled";
     private static final Integer AUTO_COMPLETE_LIST_SIZE = 10;
 
-    public MultiValueAutoCompleteTextPanel(String id, IModel<List<T>> model, boolean inputEnabled, boolean prepareModel){
+    public MultiValueAutoCompleteTextPanel(String id, IModel<List<T>> model, boolean inputEnabled){
         super(id, model);
-
         setOutputMarkupId(true);
 
-        initLayout(inputEnabled, prepareModel);
+        initLayout(inputEnabled);
     }
 
-    private IModel<List<T>> prepareModel(boolean prepareModel){
-        if(prepareModel){
-            if(getModel().getObject() == null){
-                getModel().setObject(new ArrayList<>(Arrays.asList(createNewEmptyItem())));
-            } else if(getModel().getObject().isEmpty()){
-                getModel().getObject().add(createNewEmptyItem());
+    private void initLayout(final boolean inputEnabled){
+        WebMarkupContainer placeholderContainer = new WebMarkupContainer(ID_PLACEHOLDER_CONTAINER);
+        placeholderContainer.setOutputMarkupPlaceholderTag(true);
+        placeholderContainer.setOutputMarkupPlaceholderTag(true);
+        placeholderContainer.add(new VisibleEnableBehaviour(){
+
+            @Override
+            public boolean isVisible() {
+                return getModel().getObject().isEmpty();
             }
-        }
-        return getModel();
-    }
+        });
+        add(placeholderContainer);
 
-    protected T createNewEmptyItem(){
-        return null;
-    }
+        AjaxLink placeholderAdd = new AjaxLink(ID_PLACEHOLDER_ADD) {
 
-    private void initLayout(final boolean inputEnabled, boolean prepareModel){
+            @Override
+            public void onClick(AjaxRequestTarget target) {
+                addValuePerformed(target);
+            }
+        };
+        placeholderAdd.add(new AttributeAppender("class", new AbstractReadOnlyModel<String>() {
 
-        ListView repeater = new ListView<T>(ID_REPEATER, prepareModel(prepareModel)){
+            @Override
+            public String getObject() {
+                if (buttonsDisabled()) {
+                    return " " + CSS_DISABLED;
+                }
+
+                return "";
+            }
+        }));
+        placeholderAdd.setOutputMarkupId(true);
+        placeholderAdd.setOutputMarkupPlaceholderTag(true);
+        placeholderContainer.add(placeholderAdd);
+
+        ListView repeater = new ListView<T>(ID_REPEATER, getModel()){
 
             @Override
             protected void populateItem(final ListItem<T> item) {
-
+                AutoCompleteSettings autoCompleteSettings = new AutoCompleteSettings();
+                autoCompleteSettings.setShowListOnEmptyInput(true);
                 AutoCompleteTextField<String> autoCompleteEditor = new AutoCompleteTextField<String>(ID_TEXT,
-                        createTextModel(item.getModel())) {
+                        createTextModel(item.getModel()), autoCompleteSettings) {
 
                     @Override
                     protected Iterator<String> getChoices(String input) {
-                        if(Strings.isEmpty(input)){
-                            List<String> emptyList = Collections.emptyList();
-                            return emptyList.iterator();
-                        }
-
-                        List<T> list = createObjectList();
-                        List<String> choices = new ArrayList<>(AUTO_COMPLETE_LIST_SIZE);
-
-                        for(T object: list){
-                            if(createAutoCompleteObjectLabel(object).toLowerCase().startsWith(input.toLowerCase())){
-                                choices.add(createAutoCompleteObjectLabel(object));
-
-                                if(choices.size() == AUTO_COMPLETE_LIST_SIZE){
-                                    break;
-                                }
-                            }
-                        }
-
-                        return choices.iterator();
+                        return createAutoCompleteObjectList(input);
                     }
                 };
                 autoCompleteEditor.add(createAutoCompleteValidator());
+                autoCompleteEditor.add(new AjaxFormComponentUpdatingBehavior("onchange") {
+
+                    @Override
+                    protected void onUpdate(AjaxRequestTarget target) {}
+                });
                 item.add(autoCompleteEditor);
 
                 autoCompleteEditor.add(AttributeAppender.replace("placeholder", createEmptyItemPlaceholder()));
@@ -118,7 +129,49 @@ public class MultiValueAutoCompleteTextPanel<T extends Serializable> extends Sim
                 initButtons(buttonGroup, item);
             }
         };
+        repeater.setOutputMarkupId(true);
+        repeater.setOutputMarkupPlaceholderTag(true);
+        repeater.add(new VisibleEnableBehaviour(){
+
+            @Override
+            public boolean isVisible() {
+                return !getModel().getObject().isEmpty();
+            }
+        });
         add(repeater);
+    }
+
+    protected T createNewEmptyItem(){
+        return null;
+    }
+
+    private Iterator<String> createAutoCompleteObjectList(String input) {
+        List<T> list = createObjectList();
+        List<String> choices = new ArrayList<>(AUTO_COMPLETE_LIST_SIZE);
+
+        if(Strings.isEmpty(input)){
+            for(T object: list){
+                choices.add(createAutoCompleteObjectLabel(object));
+
+                if(choices.size() == AUTO_COMPLETE_LIST_SIZE){
+                    break;
+                }
+            }
+
+            return choices.iterator();
+        }
+
+        for(T object: list){
+            if(createAutoCompleteObjectLabel(object).toLowerCase().startsWith(input.toLowerCase())){
+                choices.add(createAutoCompleteObjectLabel(object));
+
+                if(choices.size() == AUTO_COMPLETE_LIST_SIZE){
+                    break;
+                }
+            }
+        }
+
+        return choices.iterator();
     }
 
     private void initButtons(WebMarkupContainer buttonGroup, final ListItem<T> item) {
@@ -160,12 +213,11 @@ public class MultiValueAutoCompleteTextPanel<T extends Serializable> extends Sim
     }
 
     protected String getMinusClassModifier(){
-        int size = getModelObject().size();
-        if (size > 1) {
-            return "";
+        if(buttonsDisabled()){
+            return CSS_DISABLED;
         }
 
-        return CSS_DISABLED;
+        return "";
     }
 
     /**

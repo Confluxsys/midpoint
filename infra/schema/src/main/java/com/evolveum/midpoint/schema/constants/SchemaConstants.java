@@ -157,6 +157,10 @@ public abstract class SchemaConstants {
 	public static final String NS_MODEL_CHANNEL = NS_MODEL + "/channels-3";
 	public static final QName CHANNEL_WEB_SERVICE_QNAME = new QName(NS_MODEL_CHANNEL, "webService");
 	public static final String CHANNEL_WEB_SERVICE_URI = QNameUtil.qNameToUri(CHANNEL_WEB_SERVICE_QNAME);
+	public static final QName CHANNEL_OBJECT_IMPORT_QNAME = new QName(NS_MODEL_CHANNEL, "objectImport");
+	public static final String CHANNEL_OBJECT_IMPORT_URI = QNameUtil.qNameToUri(CHANNEL_OBJECT_IMPORT_QNAME);
+	public static final QName CHANNEL_REST_QNAME = new QName(NS_MODEL_CHANNEL, "rest");
+	public static final String CHANNEL_REST_URI = QNameUtil.qNameToUri(CHANNEL_REST_QNAME);
 	
 	public static final String NS_MODEL_SERVICE = NS_MODEL + "/service-3";
 	

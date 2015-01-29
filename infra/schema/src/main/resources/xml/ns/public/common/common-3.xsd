@@ -2246,14 +2246,14 @@
                     <xsd:element name="organization" type="t:PolyStringType" minOccurs="0" maxOccurs="unbounded">
                         <xsd:annotation>
                             <xsd:documentation>
-                                Name or (preferrably) immutable identifier of organization that the user belongs to.
+                                Name or (preferably) immutable identifier of organization that the user belongs to.
                                 The format is deployment-specific. This property together with organizationalUnit
                                 may be used to provide easy-to-use data about organizational membership of the user.
 
                                 This is multi-valued property to allow membership of a user to several
                                 organizations. Please note that midPoint does not maintain ordering in
                                 multi-value properties therefore this is not usable to model a complex
-                                organization hierachies. Use OrgType instead.
+                                organization hierarchies. Use OrgType instead.
                             </xsd:documentation>
                             <xsd:appinfo>
                                 <a:displayName>Organization</a:displayName>
@@ -5345,17 +5345,6 @@
                     </xsd:appinfo>
                 </xsd:annotation>
             </xsd:enumeration>
-            <xsd:enumeration value="unmatched">
-                <xsd:annotation>
-                    <xsd:documentation>
-                        The new account is found on the resource (it exists) and
-                        IDM cannot determine any owner for the account.
-                    </xsd:documentation>
-                    <xsd:appinfo>
-                        <jaxb:typesafeEnumMember name="UNMATCHED"/>
-                    </xsd:appinfo>
-                </xsd:annotation>
-            </xsd:enumeration>
             <xsd:enumeration value="disputed">
                 <xsd:annotation>
                     <xsd:documentation>
@@ -5383,6 +5372,17 @@
                     </xsd:documentation>
                     <xsd:appinfo>
                         <jaxb:typesafeEnumMember name="UNLINKED"/>
+                    </xsd:appinfo>
+                </xsd:annotation>
+            </xsd:enumeration>
+            <xsd:enumeration value="unmatched">
+                <xsd:annotation>
+                    <xsd:documentation>
+                        The new account is found on the resource (it exists) and
+                        IDM cannot determine any owner for the account.
+                    </xsd:documentation>
+                    <xsd:appinfo>
+                        <jaxb:typesafeEnumMember name="UNMATCHED"/>
                     </xsd:appinfo>
                 </xsd:annotation>
             </xsd:enumeration>
@@ -6234,6 +6234,23 @@
 							</xsd:documentation>
 						</xsd:annotation>
 					</xsd:element>
+					<xsd:element name="riskLevel" type="xsd:string" minOccurs="0">
+                    	<xsd:annotation>
+                    		<xsd:documentation>
+                    			Indication of the level of risk associated with the persissions that this role assigns.
+                    			This may be a numeric value, textual label are any other suitable machine-processable indication.
+                    		</xsd:documentation>
+                    	</xsd:annotation>
+                    </xsd:element>
+					<xsd:element name="ownerRef" type="c:ObjectReferenceType" minOccurs="0">
+                        <xsd:annotation>
+                            <xsd:documentation>
+                                Owner of this role. The owner is a person (or group) that is responsible for maintenance of
+                                role definition.
+                                This reference may point to object of type UserType of OrgType.
+                            </xsd:documentation>
+                        </xsd:annotation>
+                    </xsd:element>
 					<xsd:element name="approverRef" type="c:ObjectReferenceType" minOccurs="0" maxOccurs="unbounded">
                         <xsd:annotation>
                             <xsd:documentation>
@@ -7499,7 +7516,7 @@
              <xsd:element name="oidNameBoundMode" type="xsd:boolean" minOccurs="0" default="false">
              	<xsd:annotation>
              		<xsd:documentation>
-             			A mode in which OID and name of the speciefied object are the same.
+             			A mode in which OID and name of the specified object are the same.
              		</xsd:documentation>
              		<xsd:appinfo>
              			<a:deprecated>true</a:deprecated>
@@ -8655,6 +8672,13 @@
                 <xsd:annotation>
                     <xsd:documentation>
                         Option to limit change computation and execution only for the source resource.
+                    </xsd:documentation>
+                </xsd:annotation>
+            </xsd:element>
+            <xsd:element name="reevaluateSearchFilters" type="xsd:boolean" minOccurs="0">
+                <xsd:annotation>
+                    <xsd:documentation>
+                        Causes reevaluation of search filters.
                     </xsd:documentation>
                 </xsd:annotation>
             </xsd:element>

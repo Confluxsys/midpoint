@@ -37,7 +37,8 @@ It also contains inbound mappings and definition to enable synchronization.
          xmlns:icfc="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/connector-schema-3"
          xmlns:my="http://whatever.com/my"
          xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3"
-         xmlns:mr="http://prism.evolveum.com/xml/ns/public/matching-rule-3">
+         xmlns:mr="http://prism.evolveum.com/xml/ns/public/matching-rule-3"
+         xmlns:cap="http://midpoint.evolveum.com/xml/ns/public/resource/capabilities-3">
 
 		 
     <resource oid="d0811790-1d80-11e4-86b2-3c970e467874">
@@ -79,12 +80,12 @@ It also contains inbound mappings and definition to enable synchronization.
 				<icfcldap:groupMemberAttribute>member</icfcldap:groupMemberAttribute>
 				<icfcldap:modifiersNamesToFilterOut>uid=idm,ou=Administrators,dc=example,dc=com</icfcldap:modifiersNamesToFilterOut>
 				<icfcldap:vlvSortAttribute>uid</icfcldap:vlvSortAttribute>
+				<icfcldap:vlvSortOrderingRule>2.5.13.3</icfcldap:vlvSortOrderingRule>
 				<icfcldap:useBlocks>true</icfcldap:useBlocks>
 				<icfcldap:usePagedResultControl>true</icfcldap:usePagedResultControl>
 			</icfc:configurationProperties>
-			
 			<icfc:resultsHandlerConfiguration>
-	                	<icfc:enableCaseInsensitiveFilter>true</icfc:enableCaseInsensitiveFilter>
+				<icfc:enableFilteredResultsHandler>false</icfc:enableFilteredResultsHandler>
 			</icfc:resultsHandlerConfiguration>
 		</connectorConfiguration>
        
@@ -222,6 +223,12 @@ It also contains inbound mappings and definition to enable synchronization.
 						<description>Source may have description</description>
 						<path>$user/name</path>
 					</source>
+					<!-- We need to put iterationToken here as well, otherwise effect described in MID-2139 occurs -->
+					<expression>
+						<script>
+							<code>name + iterationToken</code>
+						</script>
+					</expression>
 				</outbound>
 				<inbound>
 					<target>
@@ -357,11 +364,16 @@ It also contains inbound mappings and definition to enable synchronization.
 					</source>
 				</outbound>
 			</attribute>
+			<configuredCapabilities>
+				<cap:pagedSearch>
+					<cap:defaultSortField>ri:uid</cap:defaultSortField>
+				</cap:pagedSearch>
+			</configuredCapabilities>
 		</objectType>
 	</schemaHandling>
 
 <!--
-    <capabilities xmlns:cap="http://midpoint.evolveum.com/xml/ns/public/resource/capabilities-3">
+    <capabilities>
     	<configured>
             <cap:activation>
                 <cap:status>

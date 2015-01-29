@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2013 Evolveum
+ * Copyright (c) 2010-2015 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import java.util.List;
 
 import com.evolveum.midpoint.prism.query.OrgFilter;
 
+import com.evolveum.midpoint.prism.xml.XmlTypeConverter;
+import com.evolveum.midpoint.xml.ns._public.common.common_3.SynchronizationSituationType;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.evolveum.icf.dummy.resource.DummyGroup;
@@ -67,6 +69,8 @@ import com.evolveum.midpoint.xml.ns._public.common.common_3.ShadowType;
 import com.evolveum.midpoint.xml.ns._public.common.common_3.SystemConfigurationType;
 import com.evolveum.midpoint.xml.ns._public.common.common_3.SystemObjectsType;
 import com.evolveum.midpoint.xml.ns._public.common.common_3.UserType;
+
+import javax.xml.datatype.XMLGregorianCalendar;
 
 /**
  * @author semancik
@@ -126,7 +130,17 @@ public class AbstractInitializedModelIntegrationTest extends AbstractConfiguredM
 	protected DummyResourceContoller dummyResourceCtlBlack;
 	protected ResourceType resourceDummyBlackType;
 	protected PrismObject<ResourceType> resourceDummyBlack;
-	
+
+	protected DummyResource dummyResourceOrange;
+	protected DummyResourceContoller dummyResourceCtlOrange;
+	protected ResourceType resourceDummyOrangeType;
+	protected PrismObject<ResourceType> resourceDummyOrange;
+
+	protected DummyResource dummyResourceUpcase;
+	protected DummyResourceContoller dummyResourceCtlUpcase;
+	protected ResourceType resourceDummyUpcaseType;
+	protected PrismObject<ResourceType> resourceDummyUpcase;
+
 	protected ResourceType resourceDummySchemalessType;
 	protected PrismObject<ResourceType> resourceDummySchemaless;
 	
@@ -195,7 +209,22 @@ public class AbstractInitializedModelIntegrationTest extends AbstractConfiguredM
 		resourceDummyBlack = importAndGetObjectFromFile(ResourceType.class, RESOURCE_DUMMY_BLACK_FILENAME, RESOURCE_DUMMY_BLACK_OID, initTask, initResult);
 		resourceDummyBlackType = resourceDummyBlack.asObjectable();
 		dummyResourceCtlBlack.setResource(resourceDummyBlack);
-		
+
+		dummyResourceCtlOrange = DummyResourceContoller.create(RESOURCE_DUMMY_ORANGE_NAME, resourceDummyOrange);
+		dummyResourceCtlOrange.extendSchemaPirate();
+		dummyResourceOrange = dummyResourceCtlOrange.getDummyResource();
+		resourceDummyOrange = importAndGetObjectFromFile(ResourceType.class, RESOURCE_DUMMY_ORANGE_FILENAME, RESOURCE_DUMMY_ORANGE_OID, initTask, initResult);
+		resourceDummyOrangeType = resourceDummyOrange.asObjectable();
+		dummyResourceCtlOrange.setResource(resourceDummyOrange);
+
+		dummyResourceCtlUpcase = DummyResourceContoller.create(RESOURCE_DUMMY_UPCASE_NAME, resourceDummyUpcase);
+		dummyResourceCtlUpcase.extendSchemaPirate();
+		dummyResourceUpcase = dummyResourceCtlUpcase.getDummyResource();
+		resourceDummyUpcase = importAndGetObjectFromFile(ResourceType.class, RESOURCE_DUMMY_UPCASE_FILE, RESOURCE_DUMMY_UPCASE_OID, initTask, initResult);
+		resourceDummyUpcaseType = resourceDummyUpcase.asObjectable();
+		dummyResourceCtlUpcase.setResource(resourceDummyUpcase);
+		dummyResourceCtlUpcase.addGroup(GROUP_JOKER_DUMMY_UPCASE_NAME);
+
 		resourceDummySchemaless = importAndGetObjectFromFile(ResourceType.class, RESOURCE_DUMMY_SCHEMALESS_FILENAME, RESOURCE_DUMMY_SCHEMALESS_OID, initTask, initResult); 
 		resourceDummySchemalessType = resourceDummySchemaless.asObjectable();
 
@@ -216,11 +245,12 @@ public class AbstractInitializedModelIntegrationTest extends AbstractConfiguredM
 		repoAddObjectFromFile(USER_TEMPLATE_COMPLEX_FILENAME, ObjectTemplateType.class, initResult);
 		repoAddObjectFromFile(USER_TEMPLATE_COMPLEX_INCLUDE_FILENAME, ObjectTemplateType.class, initResult);
 
-		// Accounts
-		repoAddObjectFromFile(ACCOUNT_SHADOW_GUYBRUSH_DUMMY_FILENAME, ShadowType.class, initResult);
-		repoAddObjectFromFile(ACCOUNT_SHADOW_ELAINE_DUMMY_FILENAME, ShadowType.class, initResult);
-		repoAddObjectFromFile(ACCOUNT_SHADOW_ELAINE_DUMMY_RED_FILENAME, ShadowType.class, initResult);
-		repoAddObjectFromFile(ACCOUNT_SHADOW_ELAINE_DUMMY_BLUE_FILENAME, ShadowType.class, initResult);
+		// Shadows
+		repoAddObjectFromFile(ACCOUNT_SHADOW_GUYBRUSH_DUMMY_FILE, ShadowType.class, initResult);
+		repoAddObjectFromFile(ACCOUNT_SHADOW_ELAINE_DUMMY_FILE, ShadowType.class, initResult);
+		repoAddObjectFromFile(ACCOUNT_SHADOW_ELAINE_DUMMY_RED_FILE, ShadowType.class, initResult);
+		repoAddObjectFromFile(ACCOUNT_SHADOW_ELAINE_DUMMY_BLUE_FILE, ShadowType.class, initResult);
+		repoAddObjectFromFile(GROUP_SHADOW_JOKER_DUMMY_UPCASE_FILE, ShadowType.class, initResult);
 		
 		// Users
 		userTypeJack = repoAddObjectFromFile(USER_JACK_FILE, UserType.class, true, initResult).asObjectable();
@@ -234,6 +264,7 @@ public class AbstractInitializedModelIntegrationTest extends AbstractConfiguredM
 		repoAddObjectFromFile(ROLE_CAPTAIN_FILENAME, RoleType.class, initResult);
 		repoAddObjectFromFile(ROLE_JUDGE_FILE, RoleType.class, initResult);
 		repoAddObjectFromFile(ROLE_EMPTY_FILE, RoleType.class, initResult);
+		repoAddObjectFromFile(ROLE_SAILOR_FILE, RoleType.class, initResult);
 		
 		// Orgstruct
 		if (doAddOrgstruct()) {
@@ -375,14 +406,16 @@ public class AbstractInitializedModelIntegrationTest extends AbstractConfiguredM
 		return null;
 	}
 
-	protected void assertGroupMember(String dummyGroupName, String accountId) throws ConnectException, FileNotFoundException {
-		DummyGroup group = dummyResource.getGroupByName(dummyGroupName);
-		IntegrationTestTools.assertGroupMember(group, accountId);
+	protected void assertShadowOperationalData(PrismObject<ShadowType> shadow, SynchronizationSituationType expectedSituation, Long timeBeforeSync) {
+		ShadowType shadowType = shadow.asObjectable();
+		SynchronizationSituationType actualSituation = shadowType.getSynchronizationSituation();
+		assertEquals("Wrong situation in shadow "+shadow, expectedSituation, actualSituation);
+		XMLGregorianCalendar actualTimestampCal = shadowType.getSynchronizationTimestamp();
+		assert actualTimestampCal != null : "No synchronization timestamp in shadow "+shadow;
+		if (timeBeforeSync != null) {
+			long actualTimestamp = XmlTypeConverter.toMillis(actualTimestampCal);
+			assert actualTimestamp >= timeBeforeSync : "Synchronization timestamp was not updated in shadow " + shadow;
+		}
+		// TODO: assert sync description
 	}
-
-	protected void assertNoGroupMember(String dummyGroupName, String accountId) throws ConnectException, FileNotFoundException {
-		DummyGroup group = dummyResource.getGroupByName(dummyGroupName);
-		IntegrationTestTools.assertNoGroupMember(group, accountId);
-	}
-     	
 }
