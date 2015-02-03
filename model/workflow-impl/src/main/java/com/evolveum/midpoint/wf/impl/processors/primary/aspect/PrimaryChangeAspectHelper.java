@@ -23,9 +23,7 @@ import com.evolveum.midpoint.prism.PrismContext;
 import com.evolveum.midpoint.prism.PrismObject;
 import com.evolveum.midpoint.prism.delta.ObjectDelta;
 import com.evolveum.midpoint.repo.api.RepositoryService;
-import com.evolveum.midpoint.schema.constants.SchemaConstants;
 import com.evolveum.midpoint.schema.result.OperationResult;
-import com.evolveum.midpoint.schema.util.MiscSchemaUtil;
 import com.evolveum.midpoint.task.api.Task;
 import com.evolveum.midpoint.util.exception.ObjectNotFoundException;
 import com.evolveum.midpoint.util.exception.SchemaException;
@@ -35,16 +33,9 @@ import com.evolveum.midpoint.util.logging.Trace;
 import com.evolveum.midpoint.util.logging.TraceManager;
 import com.evolveum.midpoint.wf.impl.jobs.WfTaskUtil;
 import com.evolveum.midpoint.wf.impl.messages.ProcessEvent;
-import com.evolveum.midpoint.wf.impl.processes.itemApproval.Decision;
-import com.evolveum.midpoint.wf.impl.processes.itemApproval.ProcessVariableNames;
 import com.evolveum.midpoint.wf.impl.processors.primary.PcpJob;
 import com.evolveum.midpoint.wf.util.ApprovalUtils;
-import com.evolveum.midpoint.xml.ns._public.common.common_3.AssignmentType;
-import com.evolveum.midpoint.xml.ns._public.common.common_3.ObjectReferenceType;
-import com.evolveum.midpoint.xml.ns._public.common.common_3.ObjectType;
-import com.evolveum.midpoint.xml.ns._public.common.common_3.OrgType;
-import com.evolveum.midpoint.xml.ns._public.common.common_3.RoleType;
-import com.evolveum.midpoint.xml.ns._public.common.common_3.UserType;
+import com.evolveum.midpoint.xml.ns._public.common.common_3.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -145,6 +136,29 @@ public class PrimaryChangeAspectHelper {
         }
         return object;
     }
+    //region : Confluxsys Customization
+    public ObjectType resolveAccountObjectRef(AssignmentType a, OperationResult result) {
+
+        if (a == null) {
+            return null;
+        }
+
+        ObjectType object =null;
+
+        if(a.getTargetRef() == null && a.getConstruction() != null && a.getConstruction().getResourceRef()!= null){
+            ObjectReferenceType resourceRef = a.getConstruction().getResourceRef();
+            try {
+                object = repositoryService.getObject(ObjectType.class, resourceRef.getOid(), null, result).asObjectable();
+                a.setTarget(object);
+            } catch (ObjectNotFoundException|SchemaException e) {
+                throw new SystemException(e);
+            }
+        }
+
+
+        return object;
+    }
+    //endregion : Confluxsys Customization
 
     public void resolveRolesAndOrgUnits(PrismObject<UserType> user, OperationResult result) {
         for (AssignmentType assignmentType : user.asObjectable().getAssignment()) {

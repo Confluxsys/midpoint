@@ -16,34 +16,37 @@
 
 package com.evolveum.midpoint.web.component.assignment;
 
+import com.confluxsys.idmp.common.logging.LogManager;
+import com.confluxsys.idmp.common.logging.Logger;
+import com.confluxsys.idmp.platformobject.MetadataType;
+import com.confluxsys.idmp.platformobject.PlatformObjectMetadataManager;
+import com.confluxsys.idmp.platformservice.impl.PermissionInfoService;
 import com.evolveum.midpoint.prism.PrismPropertyDefinition;
 import com.evolveum.midpoint.prism.xml.XsdTypeMapper;
 import com.evolveum.midpoint.schema.constants.SchemaConstants;
 import com.evolveum.midpoint.util.DOMUtil;
-import com.evolveum.midpoint.web.component.input.DatePanel;
-import com.evolveum.midpoint.web.component.input.PasswordPanel;
-import com.evolveum.midpoint.web.component.input.TextPanel;
-import com.evolveum.midpoint.web.component.input.TriStateComboPanel;
+import com.evolveum.midpoint.web.component.input.*;
 import com.evolveum.midpoint.web.component.prism.InputPanel;
 import com.evolveum.midpoint.web.component.util.SimplePanel;
 import com.evolveum.midpoint.web.component.util.VisibleEnableBehaviour;
+import com.evolveum.midpoint.web.security.MidPointApplication;
 import com.evolveum.midpoint.xml.ns._public.common.common_3.ObjectType;
 import com.evolveum.prism.xml.ns._public.types_3.ProtectedStringType;
-
 import org.apache.commons.lang.ClassUtils;
+import org.apache.wicket.Application;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
-import org.apache.wicket.ajax.form.AjaxFormValidatingBehavior;
 import org.apache.wicket.ajax.markup.html.AjaxLink;
 import org.apache.wicket.markup.html.form.Form;
 import org.apache.wicket.markup.html.form.FormComponent;
+import org.apache.wicket.markup.html.form.IChoiceRenderer;
+import org.apache.wicket.model.AbstractReadOnlyModel;
 import org.apache.wicket.model.IModel;
 import org.apache.wicket.model.PropertyModel;
 
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
-
-import java.util.List;
+import java.util.*;
 
 /**
  * @author lazyman
@@ -53,6 +56,10 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
     private static final String ID_INPUT = "input";
     private static final String ID_ADD = "add";
     private static final String ID_REMOVE = "remove";
+
+    private Map<String, String> applicationMap;
+    private Map<String, String> riskMap;
+    private Map<String, String> groupMap;
 
     public ACAttributeValuePanel(String id, IModel<ACValueConstructionDto> iModel, Form form) {
         super(id, iModel);
@@ -72,7 +79,8 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
 
             comp.add(new AjaxFormComponentUpdatingBehavior("onBlur") {
                 @Override
-                protected void onUpdate(AjaxRequestTarget target) {}
+                protected void onUpdate(AjaxRequestTarget target) {
+                }
             });
         }
 
@@ -114,11 +122,117 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
     private InputPanel createTypedInputComponent(String id, PrismPropertyDefinition definition) {
         QName valueType = definition.getTypeName();
 
+        final String attributeName = definition.getName().getLocalPart();
+
+        final MetadataType attrMetaName = MetadataType.fromValue(attributeName);
+
         final String baseExpression = ACValueConstructionDto.F_VALUE;
 
         InputPanel panel;
         if (DOMUtil.XSD_DATETIME.equals(valueType)) {
             panel = new DatePanel(id, new PropertyModel<XMLGregorianCalendar>(getModel(), baseExpression));
+        } else if (attrMetaName != null && attrMetaName.equals(MetadataType.Application)) {
+            if (applicationMap == null || applicationMap.isEmpty()) {
+                initializeApplicationMap();
+            }
+            panel = new DropDownChoicePanel(id, new PropertyModel<String>(getModel(), baseExpression), new AbstractReadOnlyModel<List<String>>() {
+                @Override
+                public List<String> getObject() {
+
+                    return getApplicationIds();
+                }
+            }, new IChoiceRenderer<String>() {
+
+                @Override
+                public Object getDisplayValue(String object) {
+                    return getDispValue(object);
+                }
+
+                @Override
+                public String getIdValue(String object, int index) {
+                    return getValue(object);
+                }
+            }, true);
+
+        }
+//        else if(attributeName.equals("psetRiskLevel")){
+//            if (riskMap == null || riskMap.isEmpty()){
+//                initializeRiskMap();
+//            }
+//            panel = new DropDownChoicePanel(id, new PropertyModel<String>(getModel(), baseExpression), new AbstractReadOnlyModel<List<String>>() {
+//                @Override
+//                public List<String> getObject() {
+//                    return getRiskIds();
+//                }
+//            }, new IChoiceRenderer<String>() {
+//
+//                @Override
+//                public Object getDisplayValue(String object) {
+//                    return getRiskDisplayValue(object);
+//                }
+//
+//                @Override
+//                public String getIdValue(String object, int index) {
+//                    return getRiskValue(object);
+//                }
+//            }, true);
+//        }
+        else if (attributeName.equals("psetAppAccess")) {
+            MidPointApplication midpointApplication = (MidPointApplication) Application.get();
+            final PermissionInfoService permissionInfoService = midpointApplication.getPermissionInfoService();
+            final List<String> psetAppAccess = new ArrayList<>();
+            psetAppAccess.add(null);
+            psetAppAccess.addAll(Arrays.asList(permissionInfoService.getServiceNames()));
+            panel = new DropDownChoicePanel(id, new PropertyModel<String>(getModel(), baseExpression),
+                    new AbstractReadOnlyModel<List<String>>() {
+                        @Override
+                        public List<String> getObject() {
+                            return psetAppAccess;
+                        }
+                    }, true);
+
+            if (ObjectType.F_NAME.equals(definition.getName())) {
+                panel.getBaseFormComponent().setRequired(true);
+            }
+        } else if (attributeName.equals("psetGroups")) {
+
+            if (groupMap == null || groupMap.isEmpty()) {
+                initializeGroupMap();
+            }
+            panel = new DropDownChoicePanel(id, new PropertyModel<String>(getModel(), baseExpression), new AbstractReadOnlyModel<List<String>>() {
+                @Override
+                public List<String> getObject() {
+                    return getGroupDnList();
+                }
+            }, new IChoiceRenderer<String>() {
+
+                @Override
+                public Object getDisplayValue(String object) {
+                    return getGroupCn(object);
+                }
+
+                @Override
+                public String getIdValue(String object, int index) {
+                    return getGroupCn(object);
+                }
+            }, true);
+        } else if (attrMetaName != null && Arrays.asList(MetadataType.values()).contains(attrMetaName)) {
+            panel = new DropDownChoicePanel(id, new PropertyModel<String>(getModel(), baseExpression),
+                    new AbstractReadOnlyModel<List<Object>>() {
+                        @Override
+                        public List<Object> getObject() {
+                            Set<Object> attrValues = getAttributeValueList(attrMetaName).keySet();
+                            List<Object> list = new ArrayList<Object>();
+                            list.add(null);
+                            list.addAll(Arrays.asList(attrValues.toArray()));
+//                            List<String> list = dropDownListAttributeMap.get(attributeName);
+                            return list;
+                        }
+                    }, true);
+
+            if (ObjectType.F_NAME.equals(definition.getName())) {
+                panel.getBaseFormComponent().setRequired(true);
+            }
         } else if (ProtectedStringType.COMPLEX_TYPE.equals(valueType)) {
             panel = new PasswordPanel(id, new PropertyModel<String>(getModel(), baseExpression + ".clearValue"));
         } else if (DOMUtil.XSD_BOOLEAN.equals(valueType)) {
@@ -139,6 +253,135 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
         }
 
         return panel;
+    }
+
+    private Map<Object, String> getAttributeValueList(MetadataType attrVal) {
+        Logger logger = LogManager.getLogger(this.getClass());
+        MidPointApplication midpointApplication = (MidPointApplication) Application.get();
+        logger.info("attrVal: " + attrVal);
+        PlatformObjectMetadataManager metadataManager = midpointApplication.getPlatformObjectMetadataManager();
+
+        Map<Object, String> attMap = metadataManager.getIDNameMap(attrVal);
+
+        logger.info("AttrMap: " + attMap);
+
+
+        return attMap;
+    }
+
+
+    private void initializeGroupMap() {
+        MidPointApplication midpointApplication = (MidPointApplication) Application.get();
+        final PermissionInfoService permissionInfoService = midpointApplication.getPermissionInfoService();
+        groupMap = new HashMap<String, String>();
+        try {
+            List<String[]> groupList = permissionInfoService.getPlatformGroupNames("*");
+            for (String[] groupArr : groupList) {
+                groupMap.put(groupArr[0], groupArr[1]);
+            }
+        } catch (Exception e) {
+            LogManager.getLogger(this.getClass()).error("Error getting group map: " , e);
+        }
+    }
+
+    private List<String> getGroupDnList() {
+        List<String> groupDnList = new ArrayList<>();
+        for (String obj : groupMap.keySet()) {
+            groupDnList.add(obj);
+        }
+        return groupDnList;
+    }
+
+    private String getGroupCn(String groupDn) {
+        String dispValue = groupMap.get(groupDn);
+        return dispValue;
+    }
+
+    private void initializeApplicationMap() {
+        applicationMap = new HashMap<String, String>();
+
+        MidPointApplication midpointApplication = (MidPointApplication) Application.get();
+        PlatformObjectMetadataManager metadataManager = midpointApplication.getPlatformObjectMetadataManager();
+
+        Map<Object, String> attMap = metadataManager.getIDNameMap(MetadataType.Application);
+        if(attMap!=null) {
+            for (Object obj : attMap.keySet()) {
+                applicationMap.put(String.valueOf(obj), attMap.get(obj));
+            }
+        }
+    }
+
+    private List<String> getApplicationIds() {
+        List<String> applicationIds = new ArrayList<>();
+/*        if(applicationMap == null || applicationMap.isEmpty()){
+            initializeApplicationMap();
+        }*/
+        for (String obj : applicationMap.keySet()) {
+            applicationIds.add(obj);
+        }
+
+        return applicationIds;
+    }
+
+    private String getDispValue(String applicationId) {
+        if (applicationMap == null || applicationMap.isEmpty()) {
+            initializeApplicationMap();
+        }
+        String dispValue = applicationMap.get(applicationId);
+        if (dispValue == null) {
+            dispValue = "Choose Atleast One";
+        }
+        return dispValue;
+    }
+
+    private String getValue(String applicationId) {
+
+        if (applicationMap == null || applicationMap.isEmpty()) {
+            initializeApplicationMap();
+        }
+        String value = applicationMap.get(applicationId);
+        if (value == null) {
+            value = "Choose Atleast One";
+        }
+        return value;
+    }
+
+    private void initializeRiskMap() {
+        riskMap = new HashMap<String, String>();
+
+        riskMap.put("1", "Low");
+        riskMap.put("5", "Medium");
+        riskMap.put("10", "High");
+    }
+
+    private List<String> getRiskIds() {
+        List<String> riskIds = new ArrayList<>();
+        if (riskMap == null || riskMap.isEmpty()) {
+            initializeRiskMap();
+        }
+        for (Object obj : riskMap.keySet()) {
+            riskIds.add(String.valueOf(obj));
+        }
+
+        return riskIds;
+    }
+
+    private String getRiskDisplayValue(String riskId) {
+        if (riskMap == null || riskMap.isEmpty()) {
+            initializeRiskMap();
+        }
+        String dispValue = riskMap.get(riskId);
+
+        return dispValue;
+    }
+
+    private String getRiskValue(String riskId) {
+
+        if (riskMap == null || riskMap.isEmpty()) {
+            initializeRiskMap();
+        }
+        String value = riskMap.get(riskId);
+        return value;
     }
 
     private boolean isAddVisible() {

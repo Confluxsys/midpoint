@@ -234,5 +234,67 @@
         </xsd:complexContent>
     </xsd:complexType>
     <xsd:element name="roleApprovalForm" type="tns:RoleApprovalFormType" substitutionGroup="c:object"/>
+    <!-- Edited by Confluxsys. To add additional form type -->
+    <xsd:complexType name="AccountApprovalFormType">
+        <xsd:annotation>
+            <xsd:documentation>
+                TODO
+            </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexContent>
+            <xsd:extension base="tns:QuestionFormType">
+                <xsd:sequence>
+                    <xsd:element name="user" type="xsd:string">
+                        <xsd:annotation>
+                            <xsd:appinfo>
+                                <a:displayName>User name</a:displayName>
+                                <a:displayOrder>100</a:displayOrder>
+                                <a:access>read</a:access>
+                            </xsd:appinfo>
+                        </xsd:annotation>
+                    </xsd:element>
+                    <xsd:element name="resource" type="xsd:string">
+                        <xsd:annotation>
+                            <xsd:appinfo>
+                                <a:displayName>Resource to be assigned</a:displayName>
+                                <a:displayOrder>110</a:displayOrder>
+                                <a:access>read</a:access>
+                            </xsd:appinfo>
+                        </xsd:annotation>
+                    </xsd:element>
+                    <xsd:element name="timeInterval" type="xsd:string" minOccurs="0">
+                        <xsd:annotation>
+                            <xsd:appinfo>
+                                <a:displayName>Time interval</a:displayName>
+                                <a:displayOrder>120</a:displayOrder>
+                                <a:access>read</a:access>
+                            </xsd:appinfo>
+                        </xsd:annotation>
+                    </xsd:element>
+                    <xsd:element name="requesterComment" type="xsd:string" minOccurs="0">
+                        <xsd:annotation>
+                            <xsd:appinfo>
+                                <a:displayName>Requester's comment</a:displayName>
+                                <a:displayOrder>130</a:displayOrder>
+                                <a:access>read</a:access>
+                            </xsd:appinfo>
+                        </xsd:annotation>
+                    </xsd:element>
+                    <xsd:element name="comment" type="xsd:string" minOccurs="0">
+                        <xsd:annotation>
+                            <xsd:appinfo>
+                                <a:displayName>Your comment</a:displayName>
+                                <a:displayOrder>140</a:displayOrder>
+                            </xsd:appinfo>
+                        </xsd:annotation>
+                    </xsd:element>
+                </xsd:sequence>
+            </xsd:extension>
+        </xsd:complexContent>
+    </xsd:complexType>
+    <xsd:element name="accountApprovalForm" type="tns:AccountApprovalFormType" substitutionGroup="c:object"/>
+
+    <!-- END of Confluxsys Customization -->
+
 
 </xsd:schema>

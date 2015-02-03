@@ -17,14 +17,51 @@
 
 <beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:ldap="http://www.springframework.org/schema/ldap"
        xsi:schemaLocation="http://www.springframework.org/schema/beans
      http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
      http://www.springframework.org/schema/context
-     http://www.springframework.org/schema/context/spring-context-3.0.xsd"
+     http://www.springframework.org/schema/context/spring-context-3.0.xsd
+     http://www.springframework.org/schema/ldap
+     http://www.springframework.org/schema/ldap/spring-ldap.xsd"
        default-lazy-init="false" default-autowire="byName">
 
     <context:annotation-config/>
     <context:component-scan base-package="com.evolveum.midpoint.wf.impl"/>
     <context:spring-configured/>
+
+    <!-- Confluxsys Customization -->
+    <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" autowire-candidate="false">
+        <property name="location">
+            <value>classpath:idmp.properties</value>
+        </property>
+    </bean>
+
+    <bean id="idmpDataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource" autowire-candidate="false">
+        <property name="driverClassName" value="${idmp.datasource.driver}"/>
+        <property name="url" value="${idmp.datasource.url}"/>
+        <property name="username" value="${idmp.datasource.username}"/>
+        <property name="password" value="${idmp.datasource.password}"/>
+    </bean>
+    <context:component-scan base-package="com.confluxsys.idmp.platformobject.cmdb"/>
+
+    <bean id="PlatformObjectMetadataDAO" class="com.confluxsys.idmp.platformobject.cmdb.dao.PlatformObjectMetadataDAO" lazy-init="true">
+        <property name="dataSource" ref="idmpDataSource"/>
+    </bean>
+
+    <ldap:context-source
+            url="${idmp.unix.ldap.url}"
+            username="${idmp.unix.ldap.binddn}"
+            password="${idmp.unix.ldap.password}" />
+
+    <ldap:ldap-template id="ldapTemplate" />
+
+    <bean id="PlatformLDAPGroupDAO" class="com.confluxsys.idmp.platformservice.impl.ldapgroup.dao.PlatformGroupDAO">
+        <property name="ldapTemplate" ref="ldapTemplate" />
+    </bean>
+
+    <context:component-scan base-package="com.confluxsys.idmp.platformservice.impl"/>
+
+    <!-- END OF Confluxsys Customization -->
 
 </beans>

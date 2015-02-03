@@ -378,6 +378,10 @@ public class PrismContainerValue<T extends Containerable> extends PrismValue imp
      * Returns true if new item or value was added.
      */
 	public <V extends PrismValue> boolean merge(Item<V> item) throws SchemaException {
+        /*
+            Dharmendra : item association was null here for Resource
+         */
+        if(item != null){
 		Item<V> exisingItem = findItem(item.getElementName(), Item.class);
 		if (exisingItem == null) {
 			return add(item);
@@ -390,6 +394,11 @@ public class PrismContainerValue<T extends Containerable> extends PrismValue imp
 			}
 			return changed;
 		}
+        }else{
+            LOGGER.warn("Cannot merge item : "+ item);
+            return false;
+        }
+
 	}
 	
 	/**

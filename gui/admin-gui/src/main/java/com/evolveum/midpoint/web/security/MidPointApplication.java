@@ -16,6 +16,7 @@
 
 package com.evolveum.midpoint.web.security;
 
+import com.confluxsys.idmp.platformservice.impl.PermissionInfoService;
 import com.evolveum.midpoint.common.configuration.api.MidpointConfiguration;
 import com.evolveum.midpoint.model.api.ModelInteractionService;
 import com.evolveum.midpoint.model.api.ModelService;
@@ -59,6 +60,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
+import com.confluxsys.idmp.platformobject.PlatformObjectMetadataManager;
+
 import java.io.File;
 import java.io.FilenameFilter;
 import java.net.URI;
@@ -98,6 +101,11 @@ public class MidPointApplication extends AuthenticatedWebApplication {
     @Autowired(required = true)
     transient Protector protector;
     private WebApplicationConfiguration webApplicationConfiguration;
+
+    @Autowired
+    transient PlatformObjectMetadataManager platformObjectMetadataManager;
+    @Autowired
+    transient PermissionInfoService permissionInfoService;
 
     @Override
     protected void onDestroy() {
@@ -209,6 +217,14 @@ public class MidPointApplication extends AuthenticatedWebApplication {
 
     public Protector getProtector() {
         return protector;
+    }
+
+    public PlatformObjectMetadataManager getPlatformObjectMetadataManager(){
+        return platformObjectMetadataManager;
+    }
+
+    public PermissionInfoService getPermissionInfoService(){
+        return permissionInfoService;
     }
 
     @Override

@@ -196,6 +196,27 @@
             <artifactId>servlet-api</artifactId>
             <scope>test</scope>
         </dependency>
+
+
+        <!-- Confluxsys customization -->
+        <dependency>
+            <groupId>org.springframework.ldap</groupId>
+            <artifactId>spring-ldap-core</artifactId>
+            <version>2.0.2.RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>com.confluxsys</groupId>
+            <artifactId>idmp-platformobject</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.confluxsys</groupId>
+            <artifactId>idmp-platformservice</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!-- End of Confluxsys customization -->
+
     </dependencies>
     <profiles>
         <profile>
