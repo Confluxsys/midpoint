@@ -442,4 +442,5 @@
         </bean>
     -->
 
+    <bean id="IDMPJobManager" class="com.confluxsys.idmp.job.impl.IDMPJobManagerImpl" destroy-method="shutdown" lazy-init="true" />
 </beans>
