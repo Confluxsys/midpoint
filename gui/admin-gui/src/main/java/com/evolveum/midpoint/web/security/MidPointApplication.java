@@ -16,6 +16,7 @@
 
 package com.evolveum.midpoint.web.security;
 
+import com.confluxsys.idmp.connector.pset.lookup.AttributeLookupService;
 import com.confluxsys.idmp.platformservice.impl.PermissionInfoService;
 import com.evolveum.midpoint.common.configuration.api.MidpointConfiguration;
 import com.evolveum.midpoint.model.api.ModelInteractionService;
@@ -101,11 +102,8 @@ public class MidPointApplication extends AuthenticatedWebApplication {
     @Autowired(required = true)
     transient Protector protector;
     private WebApplicationConfiguration webApplicationConfiguration;
-
     @Autowired
-    transient PlatformObjectMetadataManager platformObjectMetadataManager;
-    @Autowired
-    transient PermissionInfoService permissionInfoService;
+    transient AttributeLookupService attributeLookupService;
 
     @Override
     protected void onDestroy() {
@@ -219,12 +217,8 @@ public class MidPointApplication extends AuthenticatedWebApplication {
         return protector;
     }
 
-    public PlatformObjectMetadataManager getPlatformObjectMetadataManager(){
-        return platformObjectMetadataManager;
-    }
-
-    public PermissionInfoService getPermissionInfoService(){
-        return permissionInfoService;
+    public AttributeLookupService getAttributeLookupService(){
+        return attributeLookupService;
     }
 
     @Override

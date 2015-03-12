@@ -17,13 +17,13 @@
 
 <beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xmlns:context="http://www.springframework.org/schema/context"
-       xmlns:ldap="http://www.springframework.org/schema/ldap"
+       xmlns:ldap="http://www.springframework.org/schema/ldap" xmlns:tx="http://www.springframework.org/schema/tx"
        xsi:schemaLocation="http://www.springframework.org/schema/beans
      http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
      http://www.springframework.org/schema/context
      http://www.springframework.org/schema/context/spring-context-3.0.xsd
      http://www.springframework.org/schema/ldap
-     http://www.springframework.org/schema/ldap/spring-ldap.xsd"
+     http://www.springframework.org/schema/ldap/spring-ldap.xsd http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd"
        default-lazy-init="false" default-autowire="byName">
 
     <context:annotation-config/>
@@ -37,13 +37,142 @@
         </property>
     </bean>
 
-    <bean id="idmpDataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource" autowire-candidate="false">
-        <property name="driverClassName" value="${idmp.datasource.driver}"/>
-        <property name="url" value="${idmp.datasource.url}"/>
-        <property name="username" value="${idmp.datasource.username}"/>
-        <property name="password" value="${idmp.datasource.password}"/>
+    <bean id="idmpDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource"
+          destroy-method="close" autowire-candidate="false">
+        <property name="driverClass" value="${idmp.datasource.driver}" />
+        <property name="jdbcUrl" value="${idmp.datasource.url}" />
+        <property name="user" value="${idmp.datasource.username}" />
+        <property name="password" value="${idmp.datasource.password}" />
+        <property name="acquireIncrement" value="3" />
+        <property name="minPoolSize" value="5" />
+        <property name="maxPoolSize" value="40" />
+        <property name="idleConnectionTestPeriod" value="1800" />
     </bean>
-    <context:component-scan base-package="com.confluxsys.idmp.platformobject.cmdb"/>
+
+    <!-- Create ConfigurationManager bean -->
+    <bean id="DataDictionaryDAO"
+          class="com.confluxsys.infra.datadictionary.impl.dao.DataDictionaryDAO"
+          autowire-candidate="false">
+        <constructor-arg ref="idmpDataSource" />
+    </bean>
+    <bean id="DataDictionaryService"
+          class="com.confluxsys.infra.datadictionary.impl.StringDictionary"
+          autowire-candidate="false">
+        <constructor-arg ref="DataDictionaryDAO" />
+    </bean>
+    <bean id="ConfigurationReader"
+          class="com.confluxsys.idmp.common.impl.config.DataDictionaryConfigurationReader"
+          autowire-candidate="false">
+        <constructor-arg ref="DataDictionaryService" />
+    </bean>
+
+
+    <bean id="InitializeConfiguration"
+          class="org.springframework.beans.factory.config.MethodInvokingFactoryBean"
+          autowire-candidate="false">
+        <property name="staticMethod"
+                  value="com.confluxsys.idmp.common.config.ConfigurationManager.setConfigurationReader" />
+        <property name="arguments">
+            <list>
+                <ref bean="ConfigurationReader" />
+            </list>
+        </property>
+    </bean>
+
+    <context:component-scan base-package="com.confluxsys.idmp.connector.pset.lookup" />
+
+    <!-- Hibernate and Transactional support -->
+    <tx:annotation-driven transaction-manager="idmpTxManager" />
+
+    <bean id="idmpSessionFactory"
+          class="org.springframework.orm.hibernate4.LocalSessionFactoryBean"
+          autowire-candidate="false">
+        <property name="dataSource" ref="idmpDataSource" />
+        <property name="mappingResources">
+            <list>
+                <!-- <value>PermissionSet.hbm.xml</value> -->
+                <value>GenericPermissionSet.hbm.xml</value>
+            </list>
+        </property>
+        <property name="hibernateProperties">
+            <value>
+                hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+                hibernate.show_sql=true
+            </value>
+        </property>
+    </bean>
+    <bean id="idmpTxManager"
+          class="org.springframework.orm.hibernate4.HibernateTransactionManager"
+          autowire-candidate="false">
+        <property name="sessionFactory" ref="idmpSessionFactory" />
+    </bean>
+
+    <!-- DAO Initializations -->
+    <!-- <bean id="PermissionSetDAO" class="com.confluxsys.idmp.connector.pset.dao.impl.PermissionSetDAOImpl">
+        <property name="sessionFactory" ref="idmpSessionFactory"/> </bean> -->
+
+    <bean id="PermissionSetTypeDAO"
+          class="com.confluxsys.idmp.connector.pset.persistence.impl.PermissionSetTypeDAOImpl"
+          autowire-candidate="false">
+        <property name="sessionFactory" ref="idmpSessionFactory" />
+    </bean>
+
+
+    <bean id="IDMPJobManager" class="com.confluxsys.idmp.job.impl.IDMPJobManagerImpl"
+          destroy-method="shutdown" autowire-candidate="false"/>
+
+    <bean id="PermissionSetSchemaManager"
+          class="com.confluxsys.idmp.connector.pset.PermissionSetSchemaManager"
+          init-method="initialize" autowire-candidate="true">
+        <property name="psetTypeDao" ref="PermissionSetTypeDAO" />
+    </bean>
+
+
+    <bean id="PlatformObjectMetadataDAO"
+          class="com.confluxsys.idmp.platformobject.cmdb.dao.PlatformObjectMetadataDAO"
+          lazy-init="true" autowire-candidate="false">
+        <property name="dataSource" ref="idmpDataSource" />
+    </bean>
+
+    <!--<context:component-scan base-package="com.confluxsys.idmp.platformobject.cmdb"/> -->
+
+    <ldap:context-source url="${idmp.unix.ldap.url}"
+                         username="${idmp.unix.ldap.binddn}" password="${idmp.unix.ldap.password}"
+                         id="ldapContext" />
+
+
+    <ldap:context-source url="${idmp.windows.ad.url}"
+                         username="${idmp.windows.ad.binddn}" password="${idmp.windows.ad.password}"
+                         id="adContext" referral="ignore" />
+    <ldap:ldap-template id="ldapTemplate"
+                        context-source-ref="ldapContext" />
+
+    <ldap:ldap-template id="ADLdapTemplate"
+                        context-source-ref="adContext" />
+
+    <bean id="UnixServiceLookup"
+          class="com.confluxsys.idmp.platformservice.impl.LookupUnixServices"
+          autowire-candidate="false" />
+    <bean id="UnixLdapGroupLookup"
+          class="com.confluxsys.idmp.platformservice.impl.ldapgroup.LdapGroupLookup"
+          autowire-candidate="false">
+        <property name="ldapTemplate" ref="ldapTemplate" />
+    </bean>
+    <bean id="UnixMetadataLookup" class="com.confluxsys.idmp.platformobject.cmdb.MetadataLookup"
+          autowire-candidate="false">
+        <property name="metadataDAO" ref="PlatformObjectMetadataDAO" />
+    </bean>
+    <bean id="ADGroupLookup"
+          class="com.confluxsys.idmp.platformservice.impl.genericldap.ObjectNameLookup"
+          autowire-candidate="false">
+        <property name="ldapTemplate" ref="ADLdapTemplate" />
+        <property name="configName" value="TBD" />
+    </bean>
+    <bean id="WindowsLocalGroupLookup"
+          class="com.confluxsys.idmp.platformservice.impl.windowsserver.WindowsLocalGroupLookup"
+          autowire-candidate="false" />
+
+    <!--    <context:component-scan base-package="com.confluxsys.idmp.platformobject.cmdb"/>
 
     <bean id="PlatformObjectMetadataDAO" class="com.confluxsys.idmp.platformobject.cmdb.dao.PlatformObjectMetadataDAO" lazy-init="true">
         <property name="dataSource" ref="idmpDataSource"/>
@@ -60,7 +189,7 @@
         <property name="ldapTemplate" ref="ldapTemplate" />
     </bean>
 
-    <context:component-scan base-package="com.confluxsys.idmp.platformservice.impl"/>
+    <context:component-scan base-package="com.confluxsys.idmp.platformservice.impl"/>-->
 
     <!-- END OF Confluxsys Customization -->
 

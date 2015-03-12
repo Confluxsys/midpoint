@@ -275,22 +275,25 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                     if(pxNode.getValue() != null){
                         Object applicationId = pxNode.getValue();
                         LOGGER.info("Application id found: "+ applicationId);
-
+/*TODO
                         ApplicationContext idmpApplicationContext = SpringApplicationContextHolder.getApplicationContext();
                         PlatformObjectMetadataManager metadataManager = (PlatformObjectMetadataManager) idmpApplicationContext.getBean("hostMetadataInfoManager");
                         PlatformObjectMetadataInfo appInfo = metadataManager.getMetadataInfo(MetadataType.Application, new Integer(String.valueOf(applicationId)));
 
-                   /*     ApplicationContext idmpApplicationContext = SpringApplicationContextHolder.getApplicationContext();
+                   *//*     ApplicationContext idmpApplicationContext = SpringApplicationContextHolder.getApplicationContext();
                         PlatformObjectMetadataManager metadataManager = (PlatformObjectMetadataManager) idmpApplicationContext.getBean("hostMetadataInfoManager");
-                        ApplicationInfo appInfo = (ApplicationInfo) metadataManager.getMetadataInfo(ApplicationInfo.MY_TYPE, new Integer (applicationId));*/
+                        ApplicationInfo appInfo = (ApplicationInfo) metadataManager.getMetadataInfo(ApplicationInfo.MY_TYPE, new Integer (applicationId));*//*
                         EntityInfo info = appInfo.getOwner().getOwnerInfo();
                         LOGGER.info("App Owner: " + info.getIdentifier() );
                         return appInfo;
+
+
+
+                        */
                     }
                 }
             }
         }
-
         return null;
     }
 
