@@ -127,7 +127,6 @@
         <property name="psetTypeDao" ref="PermissionSetTypeDAO" />
     </bean>
 
-
     <bean id="PlatformObjectMetadataDAO"
           class="com.confluxsys.idmp.platformobject.cmdb.dao.PlatformObjectMetadataDAO"
           lazy-init="true" autowire-candidate="false">
