@@ -33,20 +33,19 @@
     <!-- Confluxsys Customization -->
     <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" autowire-candidate="false">
         <property name="location">
-            <value>classpath:idmp.properties</value>
+            <value>${idmp.home}/idmp.properties</value>
         </property>
     </bean>
 
-    <bean id="idmpDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource"
-          destroy-method="close" autowire-candidate="false">
-        <property name="driverClass" value="${idmp.datasource.driver}" />
-        <property name="jdbcUrl" value="${idmp.datasource.url}" />
-        <property name="user" value="${idmp.datasource.username}" />
-        <property name="password" value="${idmp.datasource.password}" />
-        <property name="acquireIncrement" value="3" />
-        <property name="minPoolSize" value="5" />
-        <property name="maxPoolSize" value="40" />
-        <property name="idleConnectionTestPeriod" value="1800" />
+    <bean id="idmpDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" destroy-method="close" autowire-candidate="false">
+        <property name="driverClass" value="${idmp.datasource.driver}"/>
+        <property name="jdbcUrl" value="${idmp.datasource.url}"/>
+        <property name="user" value="${idmp.datasource.username}"/>
+        <property name="password" value="${idmp.datasource.password}"/>
+        <property name="acquireIncrement" value="3"/>
+        <property name="minPoolSize" value="5"/>
+        <property name="maxPoolSize" value="40"/>
+        <property name="idleConnectionTestPeriod" value="1800"/>
     </bean>
 
     <!-- Create ConfigurationManager bean -->
