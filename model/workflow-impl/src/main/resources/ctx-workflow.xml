@@ -89,7 +89,6 @@
         <property name="dataSource" ref="idmpDataSource" />
         <property name="mappingResources">
             <list>
-                <!-- <value>PermissionSet.hbm.xml</value> -->
                 <value>GenericPermissionSet.hbm.xml</value>
             </list>
         </property>
@@ -107,9 +106,6 @@
     </bean>
 
     <!-- DAO Initializations -->
-    <!-- <bean id="PermissionSetDAO" class="com.confluxsys.idmp.connector.pset.dao.impl.PermissionSetDAOImpl">
-        <property name="sessionFactory" ref="idmpSessionFactory"/> </bean> -->
-
     <bean id="PermissionSetTypeDAO"
           class="com.confluxsys.idmp.connector.pset.persistence.impl.PermissionSetTypeDAOImpl"
           autowire-candidate="false">
@@ -131,8 +127,6 @@
           lazy-init="true" autowire-candidate="false">
         <property name="dataSource" ref="idmpDataSource" />
     </bean>
-
-    <!--<context:component-scan base-package="com.confluxsys.idmp.platformobject.cmdb"/> -->
 
     <ldap:context-source url="${idmp.unix.ldap.url}"
                          username="${idmp.unix.ldap.binddn}" password="${idmp.unix.ldap.password}"
@@ -164,30 +158,11 @@
           class="com.confluxsys.idmp.platformservice.impl.genericldap.ObjectNameLookup"
           autowire-candidate="false">
         <property name="ldapTemplate" ref="ADLdapTemplate" />
-        <property name="configName" value="TBD" />
+        <property name="configName" value="AttributeLookupConfiguration" />
     </bean>
     <bean id="WindowsLocalGroupLookup"
           class="com.confluxsys.idmp.platformservice.impl.windowsserver.WindowsLocalGroupLookup"
           autowire-candidate="false" />
-
-    <!--    <context:component-scan base-package="com.confluxsys.idmp.platformobject.cmdb"/>
-
-    <bean id="PlatformObjectMetadataDAO" class="com.confluxsys.idmp.platformobject.cmdb.dao.PlatformObjectMetadataDAO" lazy-init="true">
-        <property name="dataSource" ref="idmpDataSource"/>
-    </bean>
-
-    <ldap:context-source
-            url="${idmp.unix.ldap.url}"
-            username="${idmp.unix.ldap.binddn}"
-            password="${idmp.unix.ldap.password}" />
-
-    <ldap:ldap-template id="ldapTemplate" />
-
-    <bean id="PlatformLDAPGroupDAO" class="com.confluxsys.idmp.platformservice.impl.ldapgroup.dao.PlatformGroupDAO">
-        <property name="ldapTemplate" ref="ldapTemplate" />
-    </bean>
-
-    <context:component-scan base-package="com.confluxsys.idmp.platformservice.impl"/>-->
 
     <!-- END OF Confluxsys Customization -->
 

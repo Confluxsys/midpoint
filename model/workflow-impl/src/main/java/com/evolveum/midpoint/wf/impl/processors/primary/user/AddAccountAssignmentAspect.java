@@ -17,6 +17,8 @@
 package com.evolveum.midpoint.wf.impl.processors.primary.user;
 
 import com.confluxsys.idmp.common.model.EntityInfo;
+import com.confluxsys.idmp.connector.pset.lookup.AttributeLookupService;
+import com.confluxsys.idmp.model.AttributeLookupValueInfo;
 import com.confluxsys.idmp.model.PlatformObjectMetadataInfo;
 import com.confluxsys.idmp.platformobject.*;
 
@@ -76,15 +78,17 @@ import java.util.Map;
 @Component
 public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
-    ChangeTypeEnum changeType =ChangeTypeEnum.MODIFY;
+    ChangeTypeEnum changeType = ChangeTypeEnum.MODIFY;
 
-    private enum ChangeTypeEnum{
+    private enum ChangeTypeEnum {
         ADD("creation"), DELETE("deletion"), MODIFY("modification");
         private String change;
-        private ChangeTypeEnum(String s){
+
+        private ChangeTypeEnum(String s) {
             this.change = s;
         }
-        public String  getChangeTypeString(){
+
+        public String getChangeTypeString() {
             return change;
         }
     }
@@ -111,7 +115,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
         }
     }
 
-    private List<ApprovalRequest<AssignmentType>> getAssignmentToApproveList(ObjectDelta<? extends ObjectType> change, ModelContext<?> modelContext, OperationResult result, Task taskFromModel ) {
+    private List<ApprovalRequest<AssignmentType>> getAssignmentToApproveList(ObjectDelta<? extends ObjectType> change, ModelContext<?> modelContext, OperationResult result, Task taskFromModel) {
 
         List<ApprovalRequest<AssignmentType>> approvalRequestList = new ArrayList<ApprovalRequest<AssignmentType>>();
 
@@ -122,12 +126,12 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
         if (change.getChangeType() == ChangeType.ADD) {
 
-                PrismObject<?> prismToAdd = change.getObjectToAdd();
-                UserType user = (UserType) prismToAdd.asObjectable();
+            PrismObject<?> prismToAdd = change.getObjectToAdd();
+            UserType user = (UserType) prismToAdd.asObjectable();
 
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Role-related assignments in user add delta (" + user.getAssignment().size() + "): ");
-                }
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("Role-related assignments in user add delta (" + user.getAssignment().size() + "): ");
+            }
 
             // in the following we look for assignments of roles that should be approved
 
@@ -138,18 +142,17 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                 ObjectType objectType = primaryChangeAspectHelper.resolveAccountObjectRef(a, result);
                 if (objectType != null && objectType instanceof ResourceType) {
                     ResourceType resource = (ResourceType) objectType;
-                    boolean approvalRequired = shouldResourceBeApproved(resource, ChangeType.ADD,modelContext,  taskFromModel, result);
-                    if(approvalRequired){
-                        PlatformObjectMetadataInfo applicationInfo = this.getApplicationInfo(a);
+                    boolean approvalRequired = shouldResourceBeApproved(resource, ChangeType.ADD, modelContext, taskFromModel, result);
+                    if (approvalRequired) {
+                        AttributeLookupValueInfo applicationInfo = this.getApplicationInfo(a);
                         AssignmentType aCopy = a.clone();
                         PrismContainerValue.copyDefinition(aCopy, a);
                         aCopy.setTarget(resource);
                         approvalRequestList.add(createApprovalRequest(aCopy, resource, applicationInfo));
-                        changeType =ChangeTypeEnum.ADD;
+                        changeType = ChangeTypeEnum.ADD;
                         assignmentTypeIterator.remove();
                     }
                 }
-
             }
 
         } else if (change.getChangeType() == ChangeType.MODIFY) {
@@ -160,8 +163,8 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
             while (deltaIterator.hasNext()) {
                 ItemDelta delta = deltaIterator.next();
-                if (UserType.F_ASSIGNMENT.equals(delta.getElementName()) && ((delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) || (delta.getValuesToDelete() != null && !delta.getValuesToDelete().isEmpty() ))) {          // todo: what if assignments are modified?
-                    if(delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()){
+                if (UserType.F_ASSIGNMENT.equals(delta.getElementName()) && ((delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) || (delta.getValuesToDelete() != null && !delta.getValuesToDelete().isEmpty()))) {          // todo: what if assignments are modified?
+                    if (delta.getValuesToAdd() != null && !delta.getValuesToAdd().isEmpty()) {
                         Iterator valueIterator = delta.getValuesToAdd().iterator();
                         while (valueIterator.hasNext()) {
                             Object o = valueIterator.next();
@@ -169,15 +172,15 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                                 LOGGER.trace("Assignment to add = " + ((PrismContainerValue) o).debugDump());
                             }
                             PrismContainerValue<AssignmentType> at = (PrismContainerValue<AssignmentType>) o;
-                            AssignmentType a =  at.asContainerable();
+                            AssignmentType a = at.asContainerable();
 
 
                             ObjectType objectType = primaryChangeAspectHelper.resolveAccountObjectRef(a, result);
                             if (objectType != null && objectType instanceof ResourceType) {
                                 ResourceType resource = (ResourceType) objectType;
                                 boolean approvalRequired = shouldResourceBeApproved(resource, ChangeType.ADD, modelContext, taskFromModel, result);
-                                if(approvalRequired){
-                                    PlatformObjectMetadataInfo applicationInfo = this.getApplicationInfo(a);
+                                if (approvalRequired) {
+                                    AttributeLookupValueInfo applicationInfo = this.getApplicationInfo(a);
                                     AssignmentType aCopy = a.clone();
                                     PrismContainerValue.copyDefinition(aCopy, a);
                                     aCopy.setTarget(resource);
@@ -193,7 +196,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                                 deltaIterator.remove();
                             }
                         }
-                    } else if(delta.getValuesToDelete() != null && !delta.getValuesToDelete().isEmpty()){
+                    } else if (delta.getValuesToDelete() != null && !delta.getValuesToDelete().isEmpty()) {
                         Iterator valueIterator = delta.getValuesToDelete().iterator();
                         while (valueIterator.hasNext()) {
                             Object o = valueIterator.next();
@@ -201,13 +204,13 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                                 LOGGER.trace("Assignment to delete = " + ((PrismContainerValue) o).debugDump());
                             }
                             PrismContainerValue<AssignmentType> at = (PrismContainerValue<AssignmentType>) o;
-                            AssignmentType a =  at.asContainerable();
+                            AssignmentType a = at.asContainerable();
 
                             ObjectType objectType = primaryChangeAspectHelper.resolveAccountObjectRef(a, result);
                             if (objectType != null && objectType instanceof ResourceType) {
                                 ResourceType resource = (ResourceType) objectType;
-                                boolean approvalRequired = shouldResourceBeApproved(resource, ChangeType.DELETE, modelContext,  taskFromModel, result);
-                                if(approvalRequired){
+                                boolean approvalRequired = shouldResourceBeApproved(resource, ChangeType.DELETE, modelContext, taskFromModel, result);
+                                if (approvalRequired) {
 //                                    ApplicationInfo applicationInfo = this.getApplicationInfo(a);
                                     AssignmentType aCopy = a.clone();
                                     PrismContainerValue.copyDefinition(aCopy, a);
@@ -218,8 +221,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                                 }
                             }
                         }
-                        if (delta.getValuesToDelete().isEmpty()) {         // empty set of values to add is an illegal state
-//                            delta.resetValuesToAdd();
+                        if (delta.getValuesToDelete().isEmpty()) {
                             if (delta.getValuesToReplace() == null && delta.getValuesToAdd() == null) {
                                 deltaIterator.remove();
                             }
@@ -234,7 +236,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
         return approvalRequestList;
     }
 
-    public ApprovalRequest<AssignmentType> createAccountDeleteApprovalRequest(AssignmentType assignment, ResourceType resource, ModelContext<?> modelContext){
+    public ApprovalRequest<AssignmentType> createAccountDeleteApprovalRequest(AssignmentType assignment, ResourceType resource, ModelContext<?> modelContext) {
 
         ModelElementContext<? extends ObjectType> fc = modelContext.getFocusContext();
         PrismObject<? extends ObjectType> prism = fc.getObjectNew() != null ? fc.getObjectNew() : fc.getObjectOld();
@@ -255,63 +257,52 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
     }
 
-    private PlatformObjectMetadataInfo getApplicationInfo(AssignmentType a) {
+    private AttributeLookupValueInfo getApplicationInfo(AssignmentType a) {
 
-        if(a == null){
-            throw new IllegalArgumentException("Invalid parameter: "+ a);
+        if (a == null) {
+            throw new IllegalArgumentException("Invalid parameter: " + a);
         }
         ConstructionType construction = a.getConstruction();
         List<ResourceAttributeDefinitionType> attrs = construction.getAttribute();
-        for(ResourceAttributeDefinitionType attr : attrs){
+        for (ResourceAttributeDefinitionType attr : attrs) {
             String attrName = attr.getRef().getLocalPart();
-            if(attrName.equals("psetApplication")){
+            if (attrName.equals("psetApplication")) {
                 List<JAXBElement<?>> values = attr.getOutbound().getExpression().getExpressionEvaluator();
 
                 JAXBElement<?> firstElement = values.iterator().next();
                 RawType val = (RawType) firstElement.getValue();
                 XNode xnode = val.getXnode();
-                if(xnode instanceof PrimitiveXNode){
+                if (xnode instanceof PrimitiveXNode) {
                     PrimitiveXNode pxNode = (PrimitiveXNode) xnode;
-                    if(pxNode.getValue() != null){
+                    if (pxNode.getValue() != null) {
                         Object applicationId = pxNode.getValue();
-                        LOGGER.info("Application id found: "+ applicationId);
-/*TODO
+                        LOGGER.info("Application id found: " + applicationId);
+
                         ApplicationContext idmpApplicationContext = SpringApplicationContextHolder.getApplicationContext();
-                        PlatformObjectMetadataManager metadataManager = (PlatformObjectMetadataManager) idmpApplicationContext.getBean("hostMetadataInfoManager");
-                        PlatformObjectMetadataInfo appInfo = metadataManager.getMetadataInfo(MetadataType.Application, new Integer(String.valueOf(applicationId)));
+                        AttributeLookupService metadataManager = (AttributeLookupService) idmpApplicationContext.getBean("attributeLookupService");
+                        AttributeLookupValueInfo appInfo = metadataManager.getLoookupValueInfo("UnixPermissionSet",MetadataType.Application.getMetaString(), new Integer(String.valueOf(applicationId)));
 
-                   *//*     ApplicationContext idmpApplicationContext = SpringApplicationContextHolder.getApplicationContext();
-                        PlatformObjectMetadataManager metadataManager = (PlatformObjectMetadataManager) idmpApplicationContext.getBean("hostMetadataInfoManager");
-                        ApplicationInfo appInfo = (ApplicationInfo) metadataManager.getMetadataInfo(ApplicationInfo.MY_TYPE, new Integer (applicationId));*//*
-                        EntityInfo info = appInfo.getOwner().getOwnerInfo();
-                        LOGGER.info("App Owner: " + info.getIdentifier() );
+  /*                      EntityInfo info = appInfo.getOwner().getOwnerInfo();
+                        LOGGER.info("App Owner: " + info.getIdentifier());*/
                         return appInfo;
-
-
-
-                        */
                     }
                 }
             }
         }
+
         return null;
     }
 
     private boolean shouldResourceBeApproved(ResourceType resource, ChangeType changeType, ModelContext<?> modelContext, Task taskFromModel, OperationResult result) {
-        //TODO get permision set application oid from configuration hardcoded for now.
-        if(resource.getOid().equals("PermissionSet-resource")) {
+        //TODO get permission set application oid from configuration hardcoded for now.
+        if (resource.getOid().equals("PermissionSet-resource") || resource.getOid().equals("Windows-PermissionSet-resource")) {
             if (changeType.equals(ChangeType.ADD)) {
-//            if(resource.getOid().equals("PermissionSet-resource")){
                 return true;
             } else if (changeType.equals(ChangeType.DELETE)) {
-                String objectOid = primaryChangeAspectHelper.getObjectOid(modelContext);
-                /*LOGGER.info(objectOid);*/
                 PrismObject<UserType> requester = primaryChangeAspectHelper.getRequester(taskFromModel, result);
                 UserType requesterUser = requester.asObjectable();
                 String beneficiary = MiscDataUtil.getFocusObjectName(modelContext);
-/*                LOGGER.info("requester: " + requesterUser.getName());
-                LOGGER.info("beneficiary: " + beneficiary);
-                LOGGER.info("Comparison result: " + beneficiary.equals(requesterUser.getName().getOrig()));*/
+
                 if (!beneficiary.equals(requesterUser.getName().getOrig())) {
                     return true;
                 }
@@ -321,7 +312,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
     }
 
     // creates an approval request for a given resource  assignment
-    private ApprovalRequest<AssignmentType> createApprovalRequest(AssignmentType a, ResourceType resource, PlatformObjectMetadataInfo appInfo ) {
+    private ApprovalRequest<AssignmentType> createApprovalRequest(AssignmentType a, ResourceType resource, AttributeLookupValueInfo appInfo) {
 
         ApprovalSchemaType appSchema = new ApprovalSchemaType();
         appSchema.setName("Approval Schema for Permission Set Create");
@@ -336,18 +327,18 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
         appOwnerLevel.getApproverRef().add(appOwnerRef);
         appOwnerRef.setDescription("Approval By Application Owner");
         EntityInfo ownerInfo = appInfo.getOwner().getOwnerInfo();
-        if(ownerInfo.getEntityType().equals("User")) {
+        if (ownerInfo.getEntityType().equals("User")) {
             appOwnerRef.setType(UserType.COMPLEX_TYPE);
-        }else if(ownerInfo.getEntityType().equals("Role")){
+        } else if (ownerInfo.getEntityType().equals("Role")) {
             appOwnerRef.setType(RoleType.COMPLEX_TYPE);
-        }else {
+        } else {
             throw new IllegalStateException("Invalid owner entity type: " + ownerInfo.getEntityType());
         }
         appOwnerRef.setOid(ownerInfo.getIdentifier().toString());
 
 
         ApprovalLevelType auditTeamLevel = new ApprovalLevelType();
-        appSchema.getLevel().add( auditTeamLevel);
+        appSchema.getLevel().add(auditTeamLevel);
         auditTeamLevel.setName("Approval By Security Audit Team");
         auditTeamLevel.setDescription("At this level Member of Security Audit Team will approve the changes in Permission set");
 
@@ -358,15 +349,8 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
         auditRoleRef.setType(RoleType.COMPLEX_TYPE);
         auditRoleRef.setOid("9df8e4f6-0f70-4fa1-ba0e-6a04463bf391");//TODO get security audit role detail  from config .hardcoded for now
 
-
         return new ApprovalRequestImpl(a, appSchema, null, null, null, prismContext);
     }
-
-
-/*    // creates an approval request for a given role assignment
-    private ApprovalRequest<AssignmentType> createApprovalRequest(AssignmentType a, AbstractRoleType role) {
-        return new ApprovalRequestImpl(a, role.getApprovalSchema(), role.getApproverRef(), role.getApproverExpression(), role.getAutomaticallyApproved(), prismContext);
-    }*/
 
     // approvalRequestList should contain de-referenced roles and approvalRequests that have prismContext set
     private List<PcpChildJobCreationInstruction> prepareJobCreateInstructions(ModelContext<?> modelContext, Task taskFromModel, OperationResult result, List<ApprovalRequest<AssignmentType>> approvalRequestList) throws SchemaException {
@@ -376,7 +360,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
         for (ApprovalRequest<AssignmentType> approvalRequest : approvalRequestList) {
 
-            assert(approvalRequest.getPrismContext() != null);
+            assert (approvalRequest.getPrismContext() != null);
 
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Approval request = " + approvalRequest);
@@ -386,8 +370,8 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
             String permissionSetDisplayName = this.getPermissionSetDisplayName(assignmentType);
             ResourceType res = (ResourceType) assignmentType.getTarget();
             LOGGER.info("kind: " + assignmentType.getConstruction().getKind());
-            if(assignmentType.getConstruction().getKind() == null){
-                assignmentType.getConstruction().setKind(ShadowKindType.ACCOUNT );
+            if (assignmentType.getConstruction().getKind() == null) {
+                assignmentType.getConstruction().setKind(ShadowKindType.ACCOUNT);
             }
             assignmentType.setTarget(null);         // we must remove the target object  in order to avoid problems with deserialization
             assignmentType.setTargetRef(null);// we must remove targetRef as account assignment does not supports it
@@ -411,19 +395,12 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
             ObjectDelta<? extends ObjectType> delta = assignmentToDelta(modelContext, approvalRequest, objectOid);
             instruction.setDeltaProcessAndTaskVariables(delta);
 
-//            ObjectReferenceType resRef = assignmentType.getConstruction().getResourceRef();
-
-
-            // set the names of midPoint task and activiti process instance
-//            String andExecuting = instruction.isExecuteApprovedChangeImmediately() ? "and executing " : "";
-
-            String ownerStr = changeType.equals(ChangeTypeEnum.ADD) ? " to be owned by " + beneficiaryUsername: "";
-            String taskName = "Approve " + changeType.getChangeTypeString()+ " of permission set " + permissionSetDisplayName + ownerStr;
+            String ownerStr = changeType.equals(ChangeTypeEnum.ADD) ? " to be owned by " + beneficiaryUsername : "";
+            String taskName = "Approve " + changeType.getChangeTypeString() + " of permission set " + permissionSetDisplayName + ownerStr;
             instruction.setTaskName(taskName);
-            instruction.setProcessInstanceName(changeType.getChangeTypeString()+ " of permission set.");
+            instruction.setProcessInstanceName("Approval request for " + changeType.getChangeTypeString() + " of permission set");
 
             // setup general item approval process
-//            String approvalTaskName = "Approve "+ changeType.getChangeTypeString() + resourceName + " to " + beneficiaryUsername;
             itemApprovalProcessInterface.prepareStartInstruction(instruction, approvalRequest, taskName);
 
             // set some aspect-specific variables
@@ -436,14 +413,14 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
     private String getPermissionSetDisplayName(AssignmentType a) {
 
-        if(a == null){
-            throw new IllegalArgumentException("Invalid parameter: "+ a);
+        if (a == null) {
+            throw new IllegalArgumentException("Invalid parameter: " + a);
         }
         ConstructionType construction = a.getConstruction();
         List<ResourceAttributeDefinitionType> attrs = construction.getAttribute();
-        for(ResourceAttributeDefinitionType attr : attrs){
+        for (ResourceAttributeDefinitionType attr : attrs) {
             String attrName = attr.getRef().getLocalPart();
-            if(attrName.equals("psetDisplayName")){
+            if (attrName.equals("psetDisplayName")) {
                 List<JAXBElement<?>> values = attr.getOutbound().getExpression().getExpressionEvaluator();
 
                 JAXBElement<?> firstElement = values.iterator().next();
@@ -451,7 +428,7 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
                 XNode xnode = val.getXnode();
                 PrimitiveXNode pxNode = (PrimitiveXNode) xnode;
                 return String.valueOf(pxNode.getValue());
-            }else{
+            } else {
                 continue;
             }
         }
@@ -464,9 +441,9 @@ public class AddAccountAssignmentAspect extends BasePrimaryChangeAspect {
 
         ItemDelta<PrismContainerValue<AssignmentType>> accountDelta = new ContainerDelta<>(new ItemPath(), UserType.F_ASSIGNMENT, prismContainerDefinition, prismContext);
         PrismContainerValue<AssignmentType> assignmentValue = approvalRequest.getItemToApprove().asPrismContainerValue().clone();
-        if(this.changeType.equals(ChangeTypeEnum.DELETE)){
+        if (this.changeType.equals(ChangeTypeEnum.DELETE)) {
             accountDelta.addValuesToDelete(assignmentValue);
-        }else{
+        } else {
             accountDelta.addValueToAdd(assignmentValue);
         }
 

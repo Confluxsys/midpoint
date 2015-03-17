@@ -17,7 +17,7 @@
 package com.evolveum.midpoint.web.component.prism;
 
 import com.confluxsys.idmp.connector.pset.lookup.AttributeLookupService;
-import com.confluxsys.idmp.platformservice.impl.PermissionInfoService;
+import com.confluxsys.idmp.platformobject.MetadataType;
 import com.evolveum.midpoint.prism.PrismObject;
 import com.evolveum.midpoint.prism.PrismProperty;
 import com.evolveum.midpoint.prism.PrismPropertyDefinition;
@@ -37,7 +37,6 @@ import com.evolveum.midpoint.web.util.WebMiscUtil;
 import com.evolveum.midpoint.xml.ns._public.common.common_3.*;
 import com.evolveum.midpoint.xml.ns.model.workflow.common_forms_3.RoleApprovalFormType;
 import com.evolveum.prism.xml.ns._public.types_3.ProtectedStringType;
-
 import org.apache.commons.lang.ClassUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.wicket.Application;
@@ -55,17 +54,13 @@ import org.apache.wicket.markup.html.form.TextField;
 import org.apache.wicket.markup.html.list.ListView;
 import org.apache.wicket.markup.html.panel.FeedbackPanel;
 import org.apache.wicket.markup.html.panel.Panel;
-import org.apache.wicket.model.*;
+import org.apache.wicket.model.AbstractReadOnlyModel;
+import org.apache.wicket.model.IModel;
+import org.apache.wicket.model.PropertyModel;
 
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
-
 import java.util.*;
-
-import com.confluxsys.idmp.common.logging.LogManager;
-import com.confluxsys.idmp.common.logging.Logger;
-import com.confluxsys.idmp.platformobject.*;
-import com.confluxsys.idmp.platformobject.MetadataType;
 
 /**
  * @author lazyman
@@ -353,8 +348,6 @@ public class PrismValuePanel extends Panel {
         final String attributeName = definition.getName().getLocalPart();
 
         final MetadataType attrMetaName = MetadataType.fromValue(attributeName);
-
-
         final String baseExpression = "value.value"; //pointing to prism property real value
 
         ContainerWrapper containerWrapper = model.getObject().getProperty().getContainer();
@@ -469,7 +462,6 @@ public class PrismValuePanel extends Panel {
 
     private HashMap<String, String> initializePermissionSetAttributeMap(String attributeName) {
         HashMap<String, String> attributeMap = new HashMap<String, String>();
-
         MidPointApplication midpointApplication = (MidPointApplication) Application.get();
         AttributeLookupService attributeLookupService = midpointApplication.getAttributeLookupService();
         //attributeName.equals("psetAppAccess") || attributeName.equals("psetGroups") || attributeName.equals("adGroups") || attributeName.equals("localGroups")

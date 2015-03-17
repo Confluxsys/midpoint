@@ -17,7 +17,6 @@
 package com.evolveum.midpoint.web.security;
 
 import com.confluxsys.idmp.connector.pset.lookup.AttributeLookupService;
-import com.confluxsys.idmp.platformservice.impl.PermissionInfoService;
 import com.evolveum.midpoint.common.configuration.api.MidpointConfiguration;
 import com.evolveum.midpoint.model.api.ModelInteractionService;
 import com.evolveum.midpoint.model.api.ModelService;
@@ -60,8 +59,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
-
-import com.confluxsys.idmp.platformobject.PlatformObjectMetadataManager;
 
 import java.io.File;
 import java.io.FilenameFilter;

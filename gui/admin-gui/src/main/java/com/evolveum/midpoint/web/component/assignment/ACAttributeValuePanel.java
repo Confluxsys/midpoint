@@ -16,12 +16,8 @@
 
 package com.evolveum.midpoint.web.component.assignment;
 
-import com.confluxsys.idmp.common.logging.LogManager;
-import com.confluxsys.idmp.common.logging.Logger;
 import com.confluxsys.idmp.connector.pset.lookup.AttributeLookupService;
 import com.confluxsys.idmp.platformobject.MetadataType;
-import com.confluxsys.idmp.platformobject.PlatformObjectMetadataManager;
-import com.confluxsys.idmp.platformservice.impl.PermissionInfoService;
 import com.evolveum.midpoint.prism.PrismPropertyDefinition;
 import com.evolveum.midpoint.prism.xml.XsdTypeMapper;
 import com.evolveum.midpoint.schema.constants.SchemaConstants;
@@ -57,10 +53,6 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
     private static final String ID_INPUT = "input";
     private static final String ID_ADD = "add";
     private static final String ID_REMOVE = "remove";
-
-//    private Map<String, String> applicationMap;
-    //private Map<String, String> riskMap;
-    //private Map<String, String> groupMap;
 
     public ACAttributeValuePanel(String id, IModel<ACValueConstructionDto> iModel, Form form) {
         super(id, iModel);
@@ -182,7 +174,6 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
 
     private HashMap<String, String> initializePermissionSetAttributeMap(String attributeName) {
         HashMap<String, String> attributeMap = new HashMap<String, String>();
-
         MidPointApplication midpointApplication = (MidPointApplication) Application.get();
         AttributeLookupService attributeLookupService = midpointApplication.getAttributeLookupService();
         //attributeName.equals("psetAppAccess") || attributeName.equals("psetGroups") || attributeName.equals("adGroups") || attributeName.equals("localGroups")
@@ -194,6 +185,7 @@ public class ACAttributeValuePanel extends SimplePanel<ACValueConstructionDto> {
         }
 
         Map<Object, String> attMap = attributeLookupService.getLookupMap(permissionSetType, attributeName, "*");
+
         if(attMap!=null) {
             for (Object obj : attMap.keySet()) {
                 attributeMap.put(String.valueOf(obj), attMap.get(obj));
